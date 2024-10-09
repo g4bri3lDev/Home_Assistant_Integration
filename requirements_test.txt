@@ -1,0 +1,14 @@
+pytest
+pytest-cov
+pytest-homeassistant-custom-component
+homeassistant
+pylint
+flake8
+black
+mypy
+colorlog
+qrcode[pil]
+requests_toolbelt
+websocket-client
+pytest-asyncio
+asynctest
