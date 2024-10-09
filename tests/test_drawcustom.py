@@ -4,7 +4,9 @@ from unittest.mock import patch, MagicMock
 from PIL import Image, ImageChops
 import io
 from custom_components.open_epaper_link.imagegen import customimage, getIndexColor
-BASE_IMG_PATH = 'tests/components/open_epaper_link/test_images'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+print(current_dir)
+BASE_IMG_PATH = os.path.join(current_dir, "test_images")
 @pytest.fixture
 def mock_hass():
     hass = MagicMock()
