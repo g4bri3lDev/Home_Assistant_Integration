@@ -12,3 +12,4 @@ requests_toolbelt
 websocket-client
 pytest-asyncio
 asynctest
+backoff
