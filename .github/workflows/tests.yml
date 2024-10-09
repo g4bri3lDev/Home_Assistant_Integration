@@ -22,10 +22,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - uses: actions/checkout@master
-      - name: Clone home-assistant/core
-        with:
-          name: home-assistant/core
+#      - uses: actions/checkout@master
+#      - name: Clone home-assistant/core
+#        with:
+#          name: home-assistant/core
 #
 #      - name: Setup Home Assistant
 #        working-directory: core
