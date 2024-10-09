@@ -31,8 +31,9 @@ jobs:
           script/setup
 
       - name: Activate virtualenv
+        working-directory: core
         run: |
-          . core/.venv/bin/activate
+          source venv/bin/activate
           echo PATH=$PATH >> $GITHUB_ENV
 
       - name: Install dependencies
