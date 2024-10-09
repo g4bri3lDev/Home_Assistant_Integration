@@ -17,41 +17,43 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 
-#      - uses: actions/checkout@master
-#      - name: Clone home-assistant/core
-#        with:
-#          name: home-assistant/core
-#
-#      - name: Setup Home Assistant
-#        working-directory: core
-#        run: |
-#          script/setup
-#
-#      - name: Activate virtualenv
-#        run: |
-#          . .venv/bin/activate
-#          echo PATH=$PATH >> $GITHUB_ENV
-#
-#      - name: Install dependencies
-#        run:  |
-#          pip3 install -r requirements_test_all.txt
-#
-#      - name: Install custom component
-#        run: |
-#          mkdir -p core/custom_components/open_epaper_link
-#          cp -r custom_components/open_epaper_link/* core/custom_components/open_epaper_link
-#
-#      - name:  Copy tests to core/tests/components/open_epaper_link
-#        run: |
-#          mkdir -p core/tests/components/open_epaper_link
-#          cp -r tests/* core/tests/components/open_epaper_link
-#
-#      - name: Run tests
-#        working-directory: core
-#        run: |
-#          pytest tests/components/open_epaper_link
+      - name: Clone home-assistant/core
+        uses: actions/checkout@v3
+        with:
+          repository: home-assistant/core
+          path: core
+
+      - name: Setup Home Assistant
+        working-directory: core
+        run: |
+          script/setup
+
+      - name: Activate virtualenv
+        run: |
+          . core/.venv/bin/activate
+          echo PATH=$PATH >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          pip3 install -r requirements_test_all.txt
+
+      - name: Install custom component
+        run: |
+          mkdir -p core/custom_components/open_epaper_link
+          cp -r custom_components/open_epaper_link/* core/custom_components/open_epaper_link
+
+      - name: Copy tests to core/tests/components/open_epaper_link
+        run: |
+          mkdir -p core/tests/components/open_epaper_link
+          cp -r tests/* core/tests/components/open_epaper_link
+
+      - name: Run tests
+        working-directory: core
+        run: |
+          pytest tests/components/open_epaper_link
