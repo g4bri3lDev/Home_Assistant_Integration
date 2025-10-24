@@ -270,6 +270,7 @@ class TagNameText(TextEntity):
         """
         return (
                 self._hub.online and
+                self._hub.is_tag_online(self._tag_mac) and
                 self._tag_mac in self._hub.tags and
                 self._tag_mac not in self._hub.get_blacklisted_tags()
         )

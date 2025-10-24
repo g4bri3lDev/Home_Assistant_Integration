@@ -106,7 +106,7 @@ class ESLImage(ImageEntity):
     def __init__(self, hass: HomeAssistant, tag_mac: str, hub) -> None:
         """Initialize the image entity.
 
-       Sets up the image with appropriate name, ID, and device association.
+       Sets up the image with the appropriate name, ID, and device association.
        Also initializes paths for image storage and establishes the JPEG
        content type for browser compatibility.
 
@@ -152,6 +152,7 @@ class ESLImage(ImageEntity):
 
         - The AP is online
         - The tag is known to the AP
+        - The tag has not timed out
         - The tag is not blacklisted
 
         Returns:
@@ -159,6 +160,7 @@ class ESLImage(ImageEntity):
         """
         return (
                 self._hub.online and
+                self._hub.is_tag_online(self._tag_mac) and
                 self._tag_mac in self._hub.tags and
                 self._tag_mac not in self._hub.get_blacklisted_tags()
         )

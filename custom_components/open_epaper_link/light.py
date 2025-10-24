@@ -5,6 +5,7 @@ import asyncio
 import logging
 from typing import Any
 
+from homeassistant.components import bluetooth
 from homeassistant.components.light import (
     ColorMode,
     LightEntity,
@@ -37,6 +38,7 @@ async def async_setup_entry(
     device_metadata = entry_data.get("device_metadata", {})
 
     light = OpenEPaperLinkBLELight(
+        hass=hass,
         mac_address=mac_address,
         name=name,
         device_metadata=device_metadata,
@@ -55,12 +57,14 @@ class OpenEPaperLinkBLELight(LightEntity):
 
     def __init__(
         self,
+        hass: HomeAssistant,
         mac_address: str,
         name: str,
         device_metadata: dict,
         entry_id: str,
     ) -> None:
         """Initialize the BLE light entity."""
+        self.hass = hass
         self._mac_address = mac_address
         self._name = name
         self._device_metadata = device_metadata
@@ -69,7 +73,7 @@ class OpenEPaperLinkBLELight(LightEntity):
         self._available = True
         self._auto_off_task = None
         
-        # Set translation key for proper localization
+        # Set the translation key for proper localization
         self._attr_has_entity_name = True
         self._attr_translation_key = "led"
 
@@ -95,13 +99,13 @@ class OpenEPaperLinkBLELight(LightEntity):
 
     @property
     def is_on(self) -> bool:
-        """Return true if light is on."""
+        """Return true if the light is on."""
         return self._is_on
 
     @property
     def available(self) -> bool:
         """Return true if light is available."""
-        return self._available
+        return bluetooth.async_address_present(self.hass, self._mac_address)
 
     @property
     def supported_color_modes(self) -> set[ColorMode]:

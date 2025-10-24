@@ -1,6 +1,7 @@
+from homeassistant.components import bluetooth
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -53,8 +54,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         device_metadata = entry_data.get("device_metadata", {})
         
         ble_buttons = [
-            SetClockModeButton(mac_address, name, device_metadata, entry.entry_id),
-            DisableClockModeButton(mac_address, name, device_metadata, entry.entry_id),
+            SetClockModeButton(hass, mac_address, name, device_metadata, entry.entry_id),
+            DisableClockModeButton(hass, mac_address, name, device_metadata, entry.entry_id),
         ]
         async_add_entities(ble_buttons)
         return
@@ -112,7 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     # Add AP-level buttons
     async_add_entities([
         RebootAPButton(hass, hub),
-        RefreshTagTypesButton(hass),
+        RefreshTagTypesButton(hass, hub),
     ])
 
     # Listen for new tag discoveries
@@ -219,7 +220,7 @@ class ClearPendingTagButton(ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A button is available if its associated tag is known to the AP
         and not blacklisted in the integration options.
@@ -227,7 +228,22 @@ class ClearPendingTagButton(ButtonEntity):
         Returns:
             bool: True if the tag is available, False otherwise
         """
-        return self._tag_mac not in self._hub.get_blacklisted_tags()
+        return self._hub.online and self._hub.is_tag_online(self._tag_mac) and self._tag_mac not in self._hub.get_blacklisted_tags()
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when the entity is added to Home Assistant."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
 
     async def async_press(self) -> None:
         """Handle the button press.
@@ -283,7 +299,7 @@ class ForceRefreshButton(ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A button is available if its associated tag is known to the AP
         and not blacklisted in the integration options.
@@ -291,7 +307,22 @@ class ForceRefreshButton(ButtonEntity):
         Returns:
             bool: True if the tag is available, False otherwise
         """
-        return self._tag_mac not in self._hub.get_blacklisted_tags()
+        return self._hub.online and self._hub.is_tag_online(self._tag_mac) and self._tag_mac not in self._hub.get_blacklisted_tags()
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when the entity is added to Home Assistant."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
 
     async def async_press(self) -> None:
         """Handle the button press.
@@ -346,7 +377,7 @@ class RebootTagButton(ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A button is available if its associated tag is known to the AP
         and not blacklisted in the integration options.
@@ -354,7 +385,22 @@ class RebootTagButton(ButtonEntity):
         Returns:
             bool: True if the tag is available, False otherwise
         """
-        return self._tag_mac not in self._hub.get_blacklisted_tags()
+        return self._hub.online and self._hub.is_tag_online(self._tag_mac) and self._tag_mac not in self._hub.get_blacklisted_tags()
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when the entity is added to Home Assistant."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
 
     async def async_press(self) -> None:
         """Handle the button press.
@@ -373,7 +419,7 @@ class ScanChannelsButton(ButtonEntity):
     def __init__(self, hass: HomeAssistant, tag_mac: str, hub) -> None:
         """Initialize the button entity.
 
-        Sets up the button entity with appropriate name, icon, and identifiers.
+        Sets up the button entity with the appropriate name, icon, and identifiers.
 
         Args:
             hass: Home Assistant instance
@@ -409,7 +455,7 @@ class ScanChannelsButton(ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A button is available if its associated tag is known to the AP
         and not blacklisted in the integration options.
@@ -417,7 +463,22 @@ class ScanChannelsButton(ButtonEntity):
         Returns:
             bool: True if the tag is available, False otherwise
         """
-        return self._tag_mac not in self._hub.get_blacklisted_tags()
+        return self._hub.online and self._hub.is_tag_online(self._tag_mac) and self._tag_mac not in self._hub.get_blacklisted_tags()
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when the entity is added to Home Assistant."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
 
     async def async_press(self) -> None:
         """Handle the button press.
@@ -436,7 +497,7 @@ class DeepSleepButton(ButtonEntity):
     def __init__(self, hass: HomeAssistant, tag_mac: str, hub) -> None:
         """Initialize the button entity.
 
-        Sets up the button entity with appropriate name, icon, and identifiers.
+        Sets up the button entity with the appropriate name, icon, and identifiers.
 
         Args:
             hass: Home Assistant instance
@@ -472,7 +533,7 @@ class DeepSleepButton(ButtonEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A button is available if its associated tag is known to the AP
         and not blacklisted in the integration options.
@@ -480,7 +541,22 @@ class DeepSleepButton(ButtonEntity):
         Returns:
             bool: True if the tag is available, False otherwise
         """
-        return self._tag_mac not in self._hub.get_blacklisted_tags()
+        return self._hub.online and self._hub.is_tag_online(self._tag_mac) and self._tag_mac not in self._hub.get_blacklisted_tags()
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when the entity is added to Home Assistant."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
 
     async def async_press(self) -> None:
         """Handle the button press.
@@ -502,7 +578,7 @@ class RebootAPButton(ButtonEntity):
     def __init__(self, hass: HomeAssistant, hub) -> None:
         """Initialize the button entity.
 
-        Sets up the button with appropriate name, icon, and device association.
+        Sets up the button with the appropriate name, icon, and device association.
 
         Args:
             hass: Home Assistant instance
@@ -529,6 +605,33 @@ class RebootAPButton(ButtonEntity):
             "identifiers": {(DOMAIN, "ap")},
         }
 
+    @property
+    def available(self) -> bool:
+        """Return if the entity is available.
+
+        A button is available if its associated tag is known to the AP
+        and not blacklisted in the integration options.
+
+        Returns:
+            bool: True if the tag is available, False otherwise
+        """
+        return self._hub.online
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when the entity is added to Home Assistant."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
+
     async def async_press(self) -> None:
         """Handle the button press.
 
@@ -550,15 +653,16 @@ class RefreshTagTypesButton(ButtonEntity):
     to inform the user of the result.
     """
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, hub) -> None:
         """Initialize the button entity.
 
-        Sets up the button with appropriate name, icon, and device association.
+        Sets up the button with the appropriate name, icon, and device association.
 
         Args:
             hass: Home Assistant instance
         """
         self._hass = hass
+        self._hub = hub
         self._attr_unique_id = "refresh_tag_types"
         # self._attr_name = "Refresh Tag Types"
         self._attr_has_entity_name = True
@@ -582,6 +686,33 @@ class RefreshTagTypesButton(ButtonEntity):
             # "model": self._hub.ap_model,
             "manufacturer": "OpenEPaperLink",
         }
+
+    @property
+    def available(self) -> bool:
+        """Return if the entity is available.
+
+        A button is available if its associated tag is known to the AP
+        and not blacklisted in the integration options.
+
+        Returns:
+            bool: True if the tag is available, False otherwise
+        """
+        return self._hub.online
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when the entity is added to Home Assistant."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
 
     async def async_press(self) -> None:
         """Handle the button press.
@@ -613,12 +744,12 @@ class RefreshTagTypesButton(ButtonEntity):
 
 
 class SetClockModeButton(ButtonEntity):
-    """Button to set clock mode on BLE device.
+    """Button to set clock mode on the BLE device.
 
     Creates a button entity that sends the clock mode command to a BLE device,
     setting it to display the current time.
     """
-    def __init__(self, mac_address: str, name: str, device_metadata: dict, entry_id: str) -> None:
+    def __init__(self, hass: HomeAssistant, mac_address: str, name: str, device_metadata: dict, entry_id: str) -> None:
         """Initialize the button entity.
 
         Args:
@@ -627,6 +758,7 @@ class SetClockModeButton(ButtonEntity):
             device_metadata: Device metadata dictionary
             entry_id: Configuration entry ID
         """
+        self.hass = hass
         self._mac_address = mac_address
         self._name = name
         self._device_metadata = device_metadata
@@ -652,6 +784,11 @@ class SetClockModeButton(ButtonEntity):
             "hw_version": f"{width}x{height}" if width and height else None,
         }
 
+    @property
+    def available(self) -> bool:
+        """Return true if the button is available."""
+        return bluetooth.async_address_present(self.hass, self._mac_address)
+
     async def async_press(self) -> None:
         """Handle the button press."""
         from .ble_utils import set_clock_mode
@@ -661,12 +798,12 @@ class SetClockModeButton(ButtonEntity):
 
 
 class DisableClockModeButton(ButtonEntity):
-    """Button to disable clock mode on BLE device.
+    """Button to disable clock mode on the BLE device.
 
     Creates a button entity that sends the disable clock mode command to a BLE device,
     returning it to normal operation.
     """
-    def __init__(self, mac_address: str, name: str, device_metadata: dict, entry_id: str) -> None:
+    def __init__(self, hass: HomeAssistant, mac_address: str, name: str, device_metadata: dict, entry_id: str) -> None:
         """Initialize the button entity.
 
         Args:
@@ -675,6 +812,7 @@ class DisableClockModeButton(ButtonEntity):
             device_metadata: Device metadata dictionary
             entry_id: Configuration entry ID
         """
+        self.hass = hass
         self._mac_address = mac_address
         self._name = name
         self._device_metadata = device_metadata
@@ -699,6 +837,11 @@ class DisableClockModeButton(ButtonEntity):
             "sw_version": f"0x{self._device_metadata.get('fw_version', 0):04x}",
             "hw_version": f"{width}x{height}" if width and height else None,
         }
+
+    @property
+    def available(self) -> bool:
+        """Return true if button is available."""
+        return bluetooth.async_address_present(self.hass, self._mac_address)
 
     async def async_press(self) -> None:
         """Handle the button press."""

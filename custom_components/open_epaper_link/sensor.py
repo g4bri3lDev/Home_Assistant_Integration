@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Final
 
+from homeassistant.components import bluetooth
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -558,14 +559,14 @@ class OpenEPaperLinkTagSensor(OpenEPaperLinkBaseSensor):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A tag sensor is available if the tag is known to the hub.
 
         Returns:
             bool: True if the sensor is available, False otherwise
         """
-        return self._tag_mac in self._hub.tags
+        return self._hub.online and self._hub.is_tag_online(self._tag_mac)
 
     @property
     def native_value(self):
@@ -615,6 +616,18 @@ class OpenEPaperLinkTagSensor(OpenEPaperLinkBaseSensor):
                 self._handle_update,
             )
         )
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{DOMAIN}_connection_status",
+                self._handle_connection_status
+            )
+        )
+
+    @callback
+    def _handle_connection_status(self, is_online: bool) -> None:
+        """Handle connection status updates."""
+        self.async_write_ha_state()
 
     @callback
     def _handle_update(self) -> None:
@@ -747,6 +760,7 @@ class OpenEPaperLinkBLESensor(SensorEntity):
 
     def __init__(
         self,
+        hass: HomeAssistant,
         mac_address: str,
         name: str,
         device_metadata: dict,
@@ -754,12 +768,12 @@ class OpenEPaperLinkBLESensor(SensorEntity):
         description: OpenEPaperLinkSensorEntityDescription,
     ) -> None:
         """Initialize the BLE sensor entity."""
+        self.hass = hass
         self._mac_address = mac_address
         self._name = name
         self._device_metadata = device_metadata
         self._entry_id = entry_id
         self._description = description
-        self._available = True
         self._sensor_data = {}
         
         # Set entity registry enabled default from description
@@ -798,8 +812,8 @@ class OpenEPaperLinkBLESensor(SensorEntity):
 
     @property
     def available(self) -> bool:
-        """Return true if sensor is available."""
-        return self._available
+        """Return true if the sensor is available."""
+        return bluetooth.async_address_present(self.hass, self._mac_address)
 
     @property
     def native_unit_of_measurement(self) -> str | None:
@@ -874,6 +888,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         sensors = []
         for description in BLE_SENSOR_TYPES:
             sensor = OpenEPaperLinkBLESensor(
+                hass=hass,
                 mac_address=mac_address,
                 name=name,
                 device_metadata=device_metadata,

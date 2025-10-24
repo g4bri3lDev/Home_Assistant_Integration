@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Final, Dict, Any, Coroutine
 
 import json
@@ -1355,3 +1355,36 @@ class Hub:
             return model_mapping[ap_env]
 
         return ap_env
+
+    def is_tag_online(self, tag_mac: str) -> bool:
+        """
+        Check if a tag is currently online based on the AP's timeout logic.
+
+        AP timeout formula: maxsleep * 60 + 300 seconds
+
+        Args:
+            tag_mac: MAC address of the tag
+
+        Returns:
+            bool: True if the tag is online, False if the tag timed out or not found.
+        """
+        if tag_mac not in self.tags:
+            return False
+
+        tag_data = self.get_tag_data(tag_mac)
+        last_seen = tag_data.get("last_seen", 0)
+
+        if last_seen == 0:
+            return False
+
+        # Get maxsleep from modecfgjson
+        modecfgjson = tag_data.get("modecfgjson")
+        maxsleep = 60 # Default
+
+        if modecfgjson and isinstance(modecfgjson, dict):
+            maxsleep = modecfgjson.get("maxsleep", 60)
+
+        timeout_threshold = (maxsleep * 60) + 300
+        current_time = datetime.now(timezone.utc).timestamp()
+
+        return (current_time - last_seen) < timeout_threshold
