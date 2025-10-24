@@ -7,9 +7,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED, CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, device_registry as dr
+from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN
 from .hub import Hub
-from .services import async_setup_services, async_unload_services
+from .services import async_setup_services
 from .util import is_ble_entry
 _LOGGER: Final = logging.getLogger(__name__)
 
@@ -29,48 +30,11 @@ BLE_PLATFORMS = [
     Platform.BUTTON,  # Clock mode controls
 ]
 
-async def _setup_services_for_configured_devices(hass: HomeAssistant) -> None:
-    """Set up services based on configured device types.
-
-    Detects what types of devices are configured and registers appropriate services:
-    - If only BLE devices: Register only BLE-compatible services
-    - If only AP devices: Register all services
-    - If mixed: Register all services (AP services work for AP devices, drawcustom works for both)
-
-    Args:
-        hass: Home Assistant instance
-    """
-    if DOMAIN not in hass.data:
-        return
-
-    has_ble_devices = False
-    has_ap_devices = False
-
-    # Check what types of devices are configured
-    for entry_data in hass.data[DOMAIN].values():
-        if is_ble_entry(entry_data):
-            has_ble_devices = True
-        else:
-            has_ap_devices = True
-
-    # Determine what services to register
-    if has_ap_devices:
-        # If AP devices are configured, register all services
-        service_type = "all"
-    elif has_ble_devices:
-        # If only BLE devices are configured, register only BLE-compatible services
-        service_type = "ble"
-    else:
-        # No devices configured yet, register all services (shouldn't happen)
-        service_type = "all"
-
-    await async_setup_services(hass, service_type)
-
 async def async_migrate_camera_entities(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
     """Migrate old camera entities to image entities.
 
           Finds and removes camera entities that match our unique ID pattern,
-          returns list of removed entity IDs for notification.
+          returns a list of removed entity IDs for notification.
 
           Returns:
               list[str]: List of removed camera entity IDs
@@ -91,6 +55,11 @@ async def async_migrate_camera_entities(hass: HomeAssistant, entry: ConfigEntry)
 
     return removed_entities
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the OpenEPaperLink integration."""
+    await async_setup_services(hass)
+    return True
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up OpenEPaperLink integration from a config entry.
 
@@ -109,7 +78,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     is_ble_device = entry.data.get("device_type") == "ble"
 
     if is_ble_device:
-        # BLE device setup using simple callback approach
+        # BLE device setup using a simple callback approach
         _LOGGER.debug("Setting up BLE device entry: %s", entry.data.get("name"))
 
         from homeassistant.components import bluetooth
@@ -234,9 +203,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # Otherwise wait for the started event
             hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, start_websocket)
 
-    # Set up services based on what device types are configured
-    await _setup_services_for_configured_devices(hass)
-
     # Listen for changes to options
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
@@ -292,7 +258,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await hub.shutdown()
 
     if unload_ok:
-        await async_unload_services(hass)
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
