@@ -9,13 +9,24 @@
         "data": {
           "host": "Host ou IP"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigurar o AP OpenEpaperLink",
+        "description": "Atualize o endereço do host do AP.",
+        "data": {
+          "host": "Host ou IP"
+        }
       }
     },
     "error": {
-      "interrogation_failed": "Falha ao conectar ao dispositivo e recuperar informações do display. Erro: {error}. Tente novamente ou verifique a conectividade do dispositivo."
+      "interrogation_failed": "Falha ao conectar ao dispositivo e recuperar informações do display. Erro: {error}. Tente novamente ou verifique a conectividade do dispositivo.",
+      "cannot_connect": "Não é possível conectar ao dispositivo. Verifique o host/IP e certifique-se de que o dispositivo está acessível.",
+      "timeout": "Tempo limite ao tentar conectar ao AP.",
+      "unknown": "Ocorreu um erro desconhecido. Verifique os logs para obter mais detalhes."
     },
     "abort": {
-      "single_instance_allowed": "Apenas um hub OpenEPaperLink pode ser configurado. Múltiplos dispositivos BLE são suportados, mas apenas um hub AP é permitido."
+      "single_instance_allowed": "Apenas um hub OpenEPaperLink pode ser configurado. Múltiplos dispositivos BLE são suportados, mas apenas um hub AP é permitido.",
+      "reconfigure_successful": "Atualização do host do hub OpenEpaperLink concluída com sucesso."
     }
   },
   "options": {
@@ -46,9 +57,9 @@
       "nightlyreboot": {
         "name": "Reinício Noturno"
       },
-        "showtimestamp": {
-            "name": "Mostrar carimbo de tempo"
-        }
+      "showtimestamp": {
+        "name": "Mostrar carimbo de tempo"
+      }
     },
     "text": {
       "alias": {

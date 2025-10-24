@@ -51,9 +51,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovered_device: dict[str, Any] | None = {}
 
     async def _validate_input(self, host: str) -> tuple[dict[str, str], str | None]:
-        """Validate the user input allows us to connect.
-
-        Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+        """
+        Validate the provided host address by making a GET request to the AP.
         """
         errors = {}
         info = None
@@ -265,6 +264,41 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={"host": self._host},
             errors=errors,
         )
+
+    async def async_step_reconfigure(
+            self,
+            user_input: dict[str, Any] | None = None
+    ):
+        """Handle reconfiguration of the AP host."""
+        errors: dict[str, str] = {}
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if not entry:
+            return self.async_abort(reason="entry_not_found")
+
+        current_host = entry.data[CONF_HOST]
+
+        if user_input is not None:
+            new_host = user_input[CONF_HOST]
+            info, error = await self._validate_input(new_host)
+            if not error:
+                # Update both data and unique id since host is the unique identifier
+                return self.async_update_reload_and_abort(
+                    entry,
+                    title=f"OpenEPaperLink AP ({new_host})",
+                    data_updates={CONF_HOST: new_host},
+                    unique_id=new_host,
+                )
+            errors["base"] = error
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({
+                vol.Required(CONF_HOST, default=current_host): str,
+            }),
+            description_placeholders={"host": current_host},
+            errors=errors,
+        )
+
 
     @staticmethod
     @callback
