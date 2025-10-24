@@ -201,68 +201,84 @@ class BLEConnection:
         _LOGGER.debug("Device %s disconnected", self.mac_address)
 
 def ble_device_operation(func):
-    """
-    Decorator to handle locking and retries for a BLE device operation.
-    It assumes that the wrapped function has 'mac_address' as its second argument.
-    """
+    """Decorator to handle locking and retries for BLE device operations.
 
+    Provides:
+    - Per-device locking to prevent concurrent operations
+    - Automatic retry with exponential backoff
+    - Preserves original exception types for proper error handling
+
+    The wrapped function should accept BLEConnection as its first parameter.
+    """
     @wraps(func)
     async def wrapper(hass, mac_address, *args, **kwargs):
-
         lock = _device_locks.setdefault(mac_address, asyncio.Lock())
 
         async with lock:
             max_attempts = 3
+            last_exception = None
+
             for attempt in range(max_attempts):
                 try:
                     async with BLEConnection(hass, mac_address) as conn:
                         return await func(conn, *args, **kwargs)
-                except BLEConnectionError as e:
-                    # Check if it's a connection slots error specifically
-                    if "No available Bluetooth connection slots" in str(e):
-                        _LOGGER.error(
-                            "BLE operation %s failed: %s",
-                            func.__name__, e
+
+                except (BLEConnectionError, BLETimeoutError, BLEProtocolError) as e:
+                    last_exception = e
+
+                    if attempt < max_attempts - 1:
+                        # Still have retries left
+                        backoff_time = 0.5 * (2 ** attempt)  # Exponential: 0.5s, 1s, 2s
+                        _LOGGER.debug(
+                            "BLE operation %s failed (attempt %d/%d): %s. Retrying in %.1fs...",
+                            func.__name__, attempt + 1, max_attempts, e, backoff_time
                         )
-                        raise HomeAssistantError(str(e))
-                    # For other connection errors, retry
-                    if attempt == max_attempts - 1:
-                        _LOGGER.error(
-                            "BLE operation %s failed after %d attempts: %s",
-                            func.__name__, max_attempts, e
-                        )
-                        raise HomeAssistantError(str(e))
-                    backoff_time = 0.25 * (attempt + 1)
-                    _LOGGER.warning(
-                        "BLE operation %s failed on attempt %d: %s. Retrying in %.2f seconds...",
-                        func.__name__, attempt + 1, e, backoff_time
+                        await asyncio.sleep(backoff_time)
+                        continue
+
+                    # Final attempt failed - log and re-raise the original exception
+                    _LOGGER.error(
+                        "BLE operation %s failed after %d attempts: %s",
+                        func.__name__, max_attempts, e
                     )
-                    await asyncio.sleep(backoff_time)
+                    raise  # Re-raises BLEConnectionError, BLETimeoutError, or BLEProtocolError
+
                 except BleakError as e:
-                    if attempt == max_attempts - 1:
-                        _LOGGER.error(
-                            "BLE operation %s failed after %d attempts: %s",
-                            func.__name__, max_attempts, e
+                    # Low-level Bleak errors (should be rare, usually caught by BLEConnection)
+                    last_exception = e
+
+                    if attempt < max_attempts - 1:
+                        backoff_time = 0.5 * (2 ** attempt)
+                        _LOGGER.warning(
+                            "BLE operation %s failed with BleakError (attempt %d/%d): %s. Retrying in %.1fs...",
+                            func.__name__, attempt + 1, max_attempts, e, backoff_time
                         )
-                        raise
-                    backoff_time = 0.25 * (attempt + 1)
-                    _LOGGER.warning(
-                        "BLE operation %s failed on attempt %d: %s. Retrying in %.2f seconds...",
-                        func.__name__, attempt + 1, e, backoff_time
+                        await asyncio.sleep(backoff_time)
+                        continue
+
+                    # Convert BleakError to BLEConnectionError for consistency
+                    _LOGGER.error(
+                        "BLE operation %s failed after %d attempts with BleakError: %s",
+                        func.__name__, max_attempts, e
                     )
-                    await asyncio.sleep(backoff_time)
-            return None
+                    raise BLEConnectionError(f"BLE operation failed: {e}") from e
+
+            # Should never reach here due to raises above, but just in case
+            if last_exception:
+                raise last_exception
+            raise BLEConnectionError("BLE operation failed for unknown reason")
+
     return wrapper
 
 @ble_device_operation
 async def turn_led_on(conn: BLEConnection) -> bool:
-    """Turn on LED for specified device using OEPL protocol."""
+    """Turn on LED for a specified device using OEPL protocol."""
     await conn.write_command(CMD_LED_ON)
     return True
 
 @ble_device_operation
 async def turn_led_off(conn: BLEConnection) -> bool:
-    """Turn off LED for specified device using OEPL protocol."""
+    """Turn off LED for a specified device using OEPL protocol."""
     await conn.write_command(CMD_LED_OFF)
     await conn.write_command(CMD_LED_OFF_FINAL)  # Required finalization command?
     return True

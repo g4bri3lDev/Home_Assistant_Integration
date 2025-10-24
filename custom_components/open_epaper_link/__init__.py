@@ -6,8 +6,10 @@ from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED, CONF_HOST
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryError
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from homeassistant.helpers.typing import ConfigType
+from .ble_utils import interrogate_ble_device, BLETimeoutError, BLEConnectionError, BLEError
 from .const import DOMAIN
 from .hub import Hub
 from .services import async_setup_services
@@ -99,6 +101,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         }
         hass.data.setdefault(DOMAIN, {})[entry.entry_id] = ble_data
 
+        # Validate BLE device is reachable before proceeding
+        try:
+            _LOGGER.debug("Performing initial BLE check for %s", mac_address)
+            await interrogate_ble_device(hass, mac_address)
+            _LOGGER.debug("BLE device %s is reachable", mac_address)
+        except (BLEConnectionError, BLETimeoutError) as err:
+            _LOGGER.warning("BLE device %s not reachable during setup: %s", mac_address, err)
+            raise ConfigEntryNotReady(f"BLE device {name} ({mac_address}) not reachable") from err
+        except BLEError as err:
+            _LOGGER.error("BLE protocol error during setup for %s: %s", mac_address, err)
+            raise ConfigEntryError(f"Failed to communicate with BLE device {name} ({mac_address})") from err
+        except Exception as err:
+            _LOGGER.error("Unexpected error during BLE device setup for %s: %s", mac_address, err)
+            raise ConfigEntryError(f"Failed to setup BLE device {name} ({mac_address})") from err
+
         def _ble_device_found(
             service_info: bluetooth.BluetoothServiceInfoBleak,
             change: bluetooth.BluetoothChange,
@@ -174,8 +191,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hub = Hub(hass, entry)
 
         # Do basic setup without WebSocket connection
-        if not await hub.async_setup_initial():
-            return False
+        # Will raise ConfigEntryNotReady or ConfigEntryError on failure
+        await hub.async_setup_initial()
 
         hass.data.setdefault(DOMAIN, {})[entry.entry_id] = hub
 
