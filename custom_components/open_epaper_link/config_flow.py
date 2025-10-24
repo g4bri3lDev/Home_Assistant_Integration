@@ -231,25 +231,26 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]):
         """Handle reauthorization."""
         self._host = entry_data[CONF_HOST]
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
             self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ):
         """Handle reauthorization confirmation."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            info, error = await self._validate_input(self._host)
+            new_host = user_input[CONF_HOST]
+            info, error = await self._validate_input(new_host)
             if not error:
                 entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                 if entry:
                     self.hass.config_entries.async_update_entry(
                         entry,
-                        data={**entry.data, CONF_HOST: self._host},
+                        data={**entry.data, CONF_HOST: new_host},
                     )
                     await self.hass.config_entries.async_reload(entry.entry_id)
                     return self.async_abort(reason="reauth_successful")
@@ -258,6 +259,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reauth_confirm",
+            data_schema=vol.Schema({
+                vol.Required(CONF_HOST, default=self._host): str,
+            }),
             description_placeholders={"host": self._host},
             errors=errors,
         )
@@ -323,6 +327,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         self._nfc_debounce = self.config_entry.options.get("nfc_debounce", 1.0)
         self._custom_font_dirs = self.config_entry.options.get("custom_font_dirs", "")
 
+        # Check if the entry has been successfully set up
+        if self.config_entry.entry_id not in self.hass.data.get(DOMAIN, {}):
+            return self.async_abort(reason="not_loaded")
+
         # Check if this is a BLE device
         entry_data = self.hass.data[DOMAIN][self.config_entry.entry_id]
         is_ble_device = is_ble_entry(entry_data)
@@ -343,7 +351,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 }
             )
 
-        # Get list of all known tags from the hub (AP devices only)
+        # Get a list of all known tags from the hub (AP devices only)
         hub = entry_data
         tags = []
         for tag_mac in hub.tags:
