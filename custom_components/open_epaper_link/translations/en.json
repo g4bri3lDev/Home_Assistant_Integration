@@ -29,6 +29,24 @@
       "reconfigure_successful": "OpenEPaperLink Hub host update successful."
     }
   },
+  "issues": {
+    "ap_unreachable": {
+      "title": "OpenEPaperLink AP is unreachable",
+      "description": "The OpenEPaperLink AP at {host} cannot be reached. Please check its network connection, power and ensure it is online."
+    },
+    "ble_not_reachable": {
+      "title": "BLE device not reachable",
+      "description": "The BLE device {mac_address} is not reachable, Please ensure the device is powered on, within range of a Bluetooth adapter or proxy and check for any connectivity issues. Error: {error}"
+    },
+    "ble_protocol_error": {
+      "title": "BLE protocol error",
+      "description": "A communication error occurred with the BLE device {mac_address}. This may indicate a firmware issue or incompatibility. Please check the device's firmware or logs. Error: {error}"
+    },
+    "ble_setup_error": {
+      "title": "BLE setup failed",
+      "description": "An unexpected error occurred during the setup of OpenEPaperLink BLE device {mac_address}. Please ensure the device is functioning correctly and its configuration is valid. Error: {error}"
+    }
+  },
   "options": {
     "step": {
       "init": {

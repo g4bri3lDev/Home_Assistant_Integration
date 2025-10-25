@@ -8,6 +8,7 @@ from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED, CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryError
 from homeassistant.helpers import entity_registry as er, device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from .ble_utils import interrogate_ble_device, BLETimeoutError, BLEConnectionError, BLEError
 from .const import DOMAIN
@@ -108,12 +109,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("BLE device %s is reachable", mac_address)
         except (BLEConnectionError, BLETimeoutError) as err:
             _LOGGER.warning("BLE device %s not reachable during setup: %s", mac_address, err)
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                f"ble_not_reachable_{mac_address}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="ble_not_reachable",
+                translation_placeholders={"name": name, "mac_address": mac_address, "error": str(err)},
+            )
             raise ConfigEntryNotReady(f"BLE device {name} ({mac_address}) not reachable") from err
         except BLEError as err:
             _LOGGER.error("BLE protocol error during setup for %s: %s", mac_address, err)
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                f"ble_protocol_error_{mac_address}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="ble_protocol_error",
+                translation_placeholders={"name": name, "mac_address": mac_address, "error": str(err)},
+            )
             raise ConfigEntryError(f"Failed to communicate with BLE device {name} ({mac_address})") from err
         except Exception as err:
             _LOGGER.error("Unexpected error during BLE device setup for %s: %s", mac_address, err)
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                f"ble_setup_error_{mac_address}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="ble_setup_error",
+                translation_placeholders={"name": name, "mac_address": mac_address, "error": str(err)},
+            )
             raise ConfigEntryError(f"Failed to setup BLE device {name} ({mac_address})") from err
 
         def _ble_device_found(
@@ -183,6 +211,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Set up BLE-specific platforms
         await hass.config_entries.async_forward_entry_setups(entry, BLE_PLATFORMS)
+
+        # Clear any previous setup failure repair issues
+        ir.async_delete_issue(hass, DOMAIN, f"ble_not_reachable_{mac_address}")
+        ir.async_delete_issue(hass, DOMAIN, f"ble_protocol_error_{mac_address}")
+        ir.async_delete_issue(hass, DOMAIN, f"ble_setup_error_{mac_address}")
 
     else:
         # Traditional AP setup
@@ -289,6 +322,19 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         hass: Home Assistant instance
         entry: Configuration entry being removed
     """
+    # Clear any repair issues for this entry
+    entry_data = hass.data[DOMAIN].get(entry.entry_id)
+    if entry_data:
+        if is_ble_entry(entry_data):
+            # Clear BLE repair issues
+            mac_address = entry_data["mac_address"]
+            ir.async_delete_issue(hass, DOMAIN, f"ble_not_reachable_{mac_address}")
+            ir.async_delete_issue(hass, DOMAIN, f"ble_protocol_error_{mac_address}")
+            ir.async_delete_issue(hass, DOMAIN, f"ble_setup_error_{mac_address}")
+        else:
+            # Clear AP repair issue
+            ir.async_delete_issue(hass, DOMAIN, "ap_unreachable")
+
     # Only remove shared storage files if this is the last config entry
     remaining_entries = [
         config_entry for config_entry in hass.config_entries.async_entries(DOMAIN)

@@ -29,6 +29,24 @@
             "reconfigure_successful": "Host-Aktualisierung des OpenEPaperLink-Hubs erfolgreich"
         }
     },
+    "issues": {
+        "ap_unreachable": {
+            "title": "OpenEPaperLink-AP ist nicht erreichbar",
+            "description": "Der OpenEPaperLink-AP unter {host} ist nicht erreichbar. Bitte Netzwerkverbindung, Stromversorgung prüfen und sicherstellen, dass er online ist."
+        },
+        "ble_not_reachable": {
+            "title": "BLE-Gerät nicht erreichbar",
+            "description": "Das BLE-Gerät {mac_address} ist nicht erreichbar. Bitte sicherstellen, dass das Gerät eingeschaltet ist, sich in Reichweite eines Bluetooth-Adapters oder -Proxys befindet und mögliche Verbindungsprobleme prüfen. Fehler: {error}"
+        },
+        "ble_protocol_error": {
+            "title": "BLE-Protokollfehler",
+            "description": "Bei der Kommunikation mit dem BLE-Gerät {mac_address} ist ein Fehler aufgetreten. Dies kann auf ein Firmwareproblem oder eine Inkompatibilität hinweisen. Bitte Firmware oder Protokolle des Geräts prüfen. Fehler: {error}"
+        },
+        "ble_setup_error": {
+            "title": "BLE-Einrichtung fehlgeschlagen",
+            "description": "Während der Einrichtung des OpenEPaperLink-BLE-Geräts {mac_address} ist ein unerwarteter Fehler aufgetreten. Bitte sicherstellen, dass das Gerät ordnungsgemäß funktioniert und seine Konfiguration gültig ist. Fehler: {error}"
+        }
+    },
     "options": {
         "step": {
             "init": {

@@ -16,6 +16,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 import logging
 
 _LOGGER: Final = logging.getLogger(__name__)
@@ -291,7 +292,7 @@ class Hub:
         _LOGGER.debug("OpenEPaperLink hub shutdown complete")
 
     async def _websocket_handler(self) -> None:
-        """Handle WebSocket connection lifecycle and process messages.
+        """Handle the WebSocket connection lifecycle and process messages.
 
          This is a long-running task that manages all aspects of the WebSocket
          connection to the OpenEPaperLink Access Point, including:
@@ -320,6 +321,7 @@ class Hub:
                     self.online = True
                     _LOGGER.debug("Connected to websocket at %s", ws_url)
                     async_dispatcher_send(self.hass, f"{DOMAIN}_connection_status", True)
+                    ir.async_delete_issue(self.hass, DOMAIN, "ap_unreachable")
 
                     # Run verification on each connection to catch deletions that happened while offline
                     await self._verify_and_cleanup_tags()
@@ -352,10 +354,32 @@ class Hub:
                 self.online = False
                 _LOGGER.error("WebSocket connection error: %s", err)
                 async_dispatcher_send(self.hass, f"{DOMAIN}_connection_status", False)
+
+                # Create a repair issue for when the AP is unreachable
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    "ap_unreachable",
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="ap_unreachable",
+                    translation_placeholders={"host": self.host},
+                )
             except Exception as err:
                 self.online = False
                 _LOGGER.error("Unexpected WebSocket error: %s", err)
                 async_dispatcher_send(self.hass, f"{DOMAIN}_connection_status", False)
+
+                # Create a repair issue
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    "ap_unreachable",
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="ap_unreachable",
+                    translation_placeholders={"host": self.host},
+                )
 
             if not self._shutdown.is_set():
                 await asyncio.sleep(RECONNECT_INTERVAL)

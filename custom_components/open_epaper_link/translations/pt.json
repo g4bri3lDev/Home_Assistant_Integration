@@ -24,9 +24,27 @@
       "timeout": "Tempo limite ao tentar conectar ao AP.",
       "unknown": "Ocorreu um erro desconhecido. Verifique os logs para obter mais detalhes."
     },
-    "abort": {
-      "single_instance_allowed": "Apenas um hub OpenEPaperLink pode ser configurado. Múltiplos dispositivos BLE são suportados, mas apenas um hub AP é permitido.",
-      "reconfigure_successful": "Atualização do host do hub OpenEpaperLink concluída com sucesso."
+        "abort": {
+            "single_instance_allowed": "Apenas um hub OpenEPaperLink pode ser configurado. Múltiplos dispositivos BLE são suportados, mas apenas um hub AP é permitido.",
+            "reconfigure_successful": "Atualização do host do hub OpenEpaperLink concluída com sucesso."
+        }
+    },
+  "issues": {
+    "ap_unreachable": {
+      "title": "AP OpenEPaperLink inacessível",
+      "description": "O AP OpenEPaperLink em {host} não pode ser alcançado. Verifique a ligação de rede, a alimentação e certifique-se de que está online."
+    },
+    "ble_not_reachable": {
+      "title": "Dispositivo BLE inacessível",
+      "description": "O dispositivo BLE {mac_address} não está acessível. Certifique-se de que o dispositivo está ligado, dentro do alcance de um adaptador ou proxy Bluetooth e verifique possíveis problemas de conectividade. Erro: {error}"
+    },
+    "ble_protocol_error": {
+      "title": "Erro de protocolo BLE",
+      "description": "Ocorreu um erro de comunicação com o dispositivo BLE {mac_address}. Isto pode indicar um problema de firmware ou uma incompatibilidade. Verifique o firmware ou os registos do dispositivo. Erro: {error}"
+    },
+    "ble_setup_error": {
+      "title": "Falha na configuração BLE",
+      "description": "Ocorreu um erro inesperado durante a configuração do dispositivo BLE OpenEPaperLink {mac_address}. Certifique-se de que o dispositivo está a funcionar corretamente e que a configuração é válida. Erro: {error}"
     }
   },
   "options": {
