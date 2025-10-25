@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -14,6 +16,8 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry
 
 # Base mapping class for handling value-to-option mapping
 class OptionMapping:
@@ -338,7 +342,7 @@ class APConfigSelect(SelectEntity):
     def __init__(self, hub, key: str, name: str, icon: str, mapping: OptionMapping) -> None:
         """Initialize the select entity.
 
-        Sets up the select entity with appropriate name, icon, and options.
+        Sets up the select entity with the appropriate name, icon, and options.
 
         Args:
             hub: Hub instance for AP communication
@@ -378,7 +382,7 @@ class APConfigSelect(SelectEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A select entity is available if:
 
@@ -492,7 +496,7 @@ class APTimeHourSelect(APConfigSelect):
         super().__init__(hub, key, name, icon, time_mapping)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEntry", async_add_entities: AddEntitiesCallback) -> None:
     """Set up select entities for AP configuration.
 
     Creates select entities for all defined AP configuration options
@@ -506,9 +510,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    hub = hass.data[DOMAIN][entry.entry_id]
+    hub = entry.runtime_data
 
-    # Wait for initial AP config to be loaded
+    # Wait for the initial AP config to be loaded
     if not hub.ap_config:
         await hub.async_update_ap_config()
 

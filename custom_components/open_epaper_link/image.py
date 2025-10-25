@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 from datetime import datetime
-from typing import Final
+from typing import Final, TYPE_CHECKING
 import requests
 
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -15,21 +15,24 @@ from .tag_types import TagType, get_tag_types_manager
 
 _LOGGER: Final = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry
+
 async def async_setup_entry(
         hass: HomeAssistant,
-        entry: ConfigEntry,
+        entry: "OpenEPaperLinkConfigEntry",
         async_add_entities: AddEntitiesCallback,
 ) -> bool:
     """Set up the OpenEPaperLink image platform."""
 
-    hub = hass.data[DOMAIN][entry.entry_id]
+    hub = entry.runtime_data
 
     # Track added image entities to prevent duplicates
     added_image_entities = set()
 
     async def async_add_image_entity(tag_mac: str) -> None:
 
-        # Skip if image entity already exists
+        # Skip if the image entity already exists
         if tag_mac in added_image_entities:
             return
 
@@ -146,7 +149,7 @@ class ESLImage(ImageEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A camera is available if:
 
@@ -287,7 +290,7 @@ class ESLImage(ImageEntity):
             self._cached_image = None
 
     async def async_added_to_hass(self) -> None:
-        """Register callback when entity is added."""
+        """Register callback when the entity is added."""
 
         # Update image on tag updates
         self.async_on_remove(

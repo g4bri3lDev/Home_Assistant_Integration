@@ -1,12 +1,16 @@
 from __future__ import annotations
-
+from typing import TYPE_CHECKING
 from .const import DOMAIN
 import requests
 import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+
 _LOGGER = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry
 
 def is_bluetooth_available(hass: HomeAssistant) -> bool:
     """Check if Bluetooth integration is available with working scanners.
@@ -21,15 +25,16 @@ def is_bluetooth_available(hass: HomeAssistant) -> bool:
         # First check if bluetooth integration is loaded
         if "bluetooth" not in hass.config.components:
             return False
-        
+
         # Then check if connectable Bluetooth scanners are available
         from homeassistant.components import bluetooth
         scanner_count = bluetooth.async_scanner_count(hass, connectable=True)
         return scanner_count > 0
-        
+
     except (ImportError, AttributeError, Exception) as err:
         _LOGGER.debug("Bluetooth availability check failed: %s", err)
         return False
+
 
 def get_image_folder(hass: HomeAssistant) -> str:
     """Return the folder where images are stored.
@@ -46,6 +51,7 @@ def get_image_folder(hass: HomeAssistant) -> str:
     """
     return hass.config.path("www/open_epaper_link")
 
+
 def get_image_path(hass: HomeAssistant, entity_id: str) -> str:
     """Return the path to the image file for a specific tag.
 
@@ -59,7 +65,8 @@ def get_image_path(hass: HomeAssistant, entity_id: str) -> str:
     Returns:
         str: Absolute path to the tag's image file
     """
-    return hass.config.path("www/open_epaper_link/open_epaper_link."+ str(entity_id).lower() + ".jpg")
+    return hass.config.path("www/open_epaper_link/open_epaper_link." + str(entity_id).lower() + ".jpg")
+
 
 async def send_tag_cmd(hass: HomeAssistant, entity_id: str, cmd: str) -> bool:
     """Send a command to an ESL Tag.
@@ -111,6 +118,7 @@ async def send_tag_cmd(hass: HomeAssistant, entity_id: str, cmd: str) -> bool:
         _LOGGER.error("Failed to send %s command to %s: %s", cmd, entity_id, str(e))
         return False
 
+
 async def reboot_ap(hass: HomeAssistant) -> bool:
     """Reboot the ESL Access Point.
 
@@ -147,6 +155,7 @@ async def reboot_ap(hass: HomeAssistant) -> bool:
     except Exception as e:
         _LOGGER.error("Failed to reboot OEPL Access Point: %s", str(e))
         return False
+
 
 async def set_ap_config_item(hub, key: str, value: str | int) -> bool:
     """Set a configuration item on the Access Point.
@@ -216,23 +225,19 @@ def get_hub_from_hass(hass: HomeAssistant):
     Raises:
         HomeAssistantError: If no AP hub is configured
     """
-    if DOMAIN not in hass.data or not hass.data[DOMAIN]:
-        raise HomeAssistantError("OpenEPaperLink integration not configured")
-    
-    for entry_data in hass.data[DOMAIN].values():
-        if not is_ble_entry(entry_data):
-            return entry_data  # This is the Hub object
-    
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if not isinstance(entry.runtime_data, dict):
+            return entry.runtime_data
     raise HomeAssistantError("No AP hub configured. Only BLE devices found.")
 
 
-def is_ble_entry(entry_data) -> bool:
+def is_ble_entry(entry: "OpenEPaperLinkConfigEntry") -> bool:
     """Check if entry data represents a BLE device.
     
     Args:
-        entry_data: Entry data from hass.data[DOMAIN][entry_id]
+        entry: Config entry to check
         
     Returns:
         bool: True if the entry represents a BLE device
     """
-    return isinstance(entry_data, dict) and entry_data.get("type") == "ble"
+    return isinstance(entry.runtime_data, dict) and entry.runtime_data.get("type") == "ble"

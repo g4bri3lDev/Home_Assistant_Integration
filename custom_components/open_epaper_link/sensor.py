@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Final
+from typing import Any, Callable, Final, cast, TYPE_CHECKING
 
 from homeassistant.components import bluetooth
 from homeassistant.components.sensor import (
@@ -25,10 +25,15 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 import logging
-from .util import is_ble_entry
+
+from . import BLERuntimeData, is_ble_entry
+from .hub import Hub
 from .tag_types import get_hw_string, get_hw_dimensions
 
 _LOGGER: Final = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry
 
 from .const import DOMAIN
 
@@ -862,7 +867,7 @@ class OpenEPaperLinkBLESensor(SensorEntity):
         pass
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEntry", async_add_entities: AddEntitiesCallback) -> None:
     """Set up the OpenEPaperLink sensors.
 
     Creates sensor entities for both AP-based and BLE-based entries:
@@ -875,14 +880,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-    
+
     # Check if this is a BLE device entry
-    if is_ble_entry(entry_data):
-        # Set up BLE sensors with simple callback approach
-        mac_address = entry_data["mac_address"]
-        name = entry_data["name"]
-        device_metadata = entry_data.get("device_metadata", {})
+    if is_ble_entry(entry):
+        # Set up BLE sensors with a simple callback approach
+        ble_data: BLERuntimeData = entry.runtime_data
+        mac_address = ble_data["mac_address"]
+        name = ble_data["name"]
+        device_metadata = ble_data.get("device_metadata", {})
         
         # Create sensors for each description
         sensors = []
@@ -897,15 +902,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             )
             sensors.append(sensor)
             
-            # Register sensor in the sensors registry so callback can update it
-            entry_data["sensors"][description.key] = sensor
+            # Register the sensor in the sensor registry so callback can update it
+            ble_data["sensors"][description.key] = sensor
         
         # Add the sensors
         async_add_entities(sensors)
         return
     
     # Traditional AP setup
-    hub = entry_data  # For AP entries, entry_data is the Hub instance
+    hub: Hub = entry.runtime_data  # For AP entries, entry_data is the Hub instance
 
     # Set up AP sensors
     ap_sensors = [OpenEPaperLinkAPSensor(hub, description) for description in AP_SENSOR_TYPES]

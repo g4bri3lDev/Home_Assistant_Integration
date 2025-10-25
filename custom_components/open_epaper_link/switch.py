@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -13,6 +15,9 @@ from .util import set_ap_config_item
 import logging
 
 _LOGGER = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry
 
 # Define switch configurations
 SWITCH_ENTITIES = [
@@ -81,7 +86,7 @@ class APConfigSwitch(SwitchEntity):
     def __init__(self, hub, key: str, name: str, icon: str, description: str) -> None:
         """Initialize the switch entity.
 
-        Sets up the switch with appropriate name, unique ID, icon, and
+        Sets up the switch with the appropriate name, unique ID, icon, and
         category based on the provided configuration.
 
         Args:
@@ -121,7 +126,7 @@ class APConfigSwitch(SwitchEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A switch entity is available if:
 
@@ -135,7 +140,7 @@ class APConfigSwitch(SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Return True if entity is on.
+        """Return True if the entity is on.
 
         Converts the numeric value from the AP configuration (0 or 1)
         to a boolean for the switch state.
@@ -194,7 +199,7 @@ class APConfigSwitch(SwitchEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self):
-        """Register callbacks when entity is added to Home Assistant.
+        """Register callbacks when an entity is added to Home Assistant.
 
         Sets up two dispatcher listeners:
 
@@ -222,7 +227,7 @@ class APConfigSwitch(SwitchEntity):
             )
         )
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEntry", async_add_entities: AddEntitiesCallback) -> None:
     """Set up switch entities for AP configuration.
 
     Creates switch entities for all defined AP configuration options
@@ -230,7 +235,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     For each defined switch:
 
-    1. Creates an APConfigSwitch instance with appropriate configuration
+    1. Creates an APConfigSwitch instance with the appropriate configuration
     2. Ensures the AP configuration is loaded before creating entities
     3. Adds all created entities to Home Assistant
 
@@ -239,9 +244,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    hub = hass.data[DOMAIN][entry.entry_id]
+    hub = entry.runtime_data
 
-    # Wait for initial AP config to be loaded
+    # Wait for the initial AP config to be loaded
     if not hub.ap_config:
         await hub.async_update_ap_config()
 

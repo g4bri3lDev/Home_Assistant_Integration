@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from homeassistant.components import bluetooth
 from homeassistant.components.light import (
@@ -15,37 +15,39 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from . import BLERuntimeData, is_ble_entry
 
 from .const import DOMAIN
 from .ble_utils import turn_led_on, turn_led_off
 
 _LOGGER = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: "OpenEPaperLinkConfigEntry",
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up BLE light entities."""
     # Only create light entity for BLE devices
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-    if entry_data.get("type") != "ble":
-        return
+    if is_ble_entry(entry):
+        ble_data: BLERuntimeData = entry.runtime_data
 
-    mac_address = entry_data["mac_address"]
-    name = entry_data["name"]
-    device_metadata = entry_data.get("device_metadata", {})
+        mac_address = ble_data["mac_address"]
+        name = ble_data["name"]
+        device_metadata = ble_data.get("device_metadata", {})
 
-    light = OpenEPaperLinkBLELight(
-        hass=hass,
-        mac_address=mac_address,
-        name=name,
-        device_metadata=device_metadata,
-        entry_id=entry.entry_id,
-    )
+        light = OpenEPaperLinkBLELight(
+            hass=hass,
+            mac_address=mac_address,
+            name=name,
+            device_metadata=device_metadata,
+            entry_id=entry.entry_id,
+        )
 
-    async_add_entities([light])
+        async_add_entities([light])
 
 
 class OpenEPaperLinkBLELight(LightEntity):
@@ -135,7 +137,7 @@ class OpenEPaperLinkBLELight(LightEntity):
                 if self._auto_off_task and not self._auto_off_task.done():
                     self._auto_off_task.cancel()
                 
-                # Start auto-off timer since LED turns off when BLE connection closes
+                # Start an auto-off timer since LED turns off when the BLE connection closes
                 self._auto_off_task = asyncio.create_task(self._auto_off_timer())
             else:
                 self._available = False
@@ -149,7 +151,7 @@ class OpenEPaperLinkBLELight(LightEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
         try:
-            # Cancel auto-off timer since manual turn-off is requested
+            # Cancel the auto-off timer since manual turn-off is requested
             if self._auto_off_task and not self._auto_off_task.done():
                 self._auto_off_task.cancel()
                 
@@ -169,8 +171,8 @@ class OpenEPaperLinkBLELight(LightEntity):
 
     async def async_update(self) -> None:
         """Update the light state."""
-        # For BLE lights, state is not actively polled since LED status cannot be read
-        # State is maintained based on last successful command
+        # For BLE lights, the state is not actively polled since LED status cannot be read
+        # State is maintained based on the last successful command
         # Availability is updated during command execution
         pass
 
@@ -178,7 +180,7 @@ class OpenEPaperLinkBLELight(LightEntity):
         """Auto-off timer that turns LED off after BLE connection closes."""
         try:
             # Wait for BLE connection to close and LED to physically turn off
-            await asyncio.sleep(8)  # Allow time for connection to close
+            await asyncio.sleep(8)  # Allow time for the connection to close
             
             # Update UI state to reflect that LED is now off
             if self._is_on:  # Only update if still showing as on

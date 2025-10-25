@@ -366,10 +366,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_abort(reason="not_loaded")
 
         # Check if this is a BLE device
-        entry_data = self.hass.data[DOMAIN][self.config_entry.entry_id]
-        is_ble_device = is_ble_entry(entry_data)
-        
-        if is_ble_device:
+        if is_ble_entry(self.config_entry):
             # BLE devices don't have configurable options
             return self.async_abort(reason="no_options_ble")
 
@@ -386,7 +383,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             )
 
         # Get a list of all known tags from the hub (AP devices only)
-        hub = entry_data
+        hub = self.config_entry.runtime_data
         tags = []
         for tag_mac in hub.tags:
             tag_data = hub.get_tag_data(tag_mac)

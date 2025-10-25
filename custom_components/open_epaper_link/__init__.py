@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Final
+from typing import Final, TypedDict
 
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
@@ -15,6 +15,7 @@ from .const import DOMAIN
 from .hub import Hub
 from .services import async_setup_services
 from .util import is_ble_entry
+
 _LOGGER: Final = logging.getLogger(__name__)
 
 PLATFORMS = [
@@ -29,9 +30,22 @@ PLATFORMS = [
 # BLE devices use a subset of platforms
 BLE_PLATFORMS = [
     Platform.SENSOR,  # Battery, RSSI, last seen
-    Platform.LIGHT,   # LED control
+    Platform.LIGHT,  # LED control
     Platform.BUTTON,  # Clock mode controls
 ]
+
+
+class BLERuntimeData(TypedDict):
+    """Runtime data for BLE devices."""
+    type: str
+    mac_address: str
+    name: str
+    device_metadata: dict
+    sensors: dict
+
+
+type OpenEPaperLinkConfigEntry = ConfigEntry[Hub | BLERuntimeData]
+
 
 async def async_migrate_camera_entities(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
     """Migrate old camera entities to image entities.
@@ -58,12 +72,14 @@ async def async_migrate_camera_entities(hass: HomeAssistant, entry: ConfigEntry)
 
     return removed_entities
 
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the OpenEPaperLink integration."""
     await async_setup_services(hass)
     return True
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+
+async def async_setup_entry(hass: HomeAssistant, entry: OpenEPaperLinkConfigEntry) -> bool:
     """Set up OpenEPaperLink integration from a config entry.
 
     This is the main entry point for integration initialization, which handles both:
@@ -100,7 +116,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "device_metadata": device_metadata,
             "sensors": {},  # Registry of sensor entities
         }
-        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = ble_data
+        entry.runtime_data = ble_data
 
         # Validate BLE device is reachable before proceeding
         try:
@@ -145,11 +161,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise ConfigEntryError(f"Failed to setup BLE device {name} ({mac_address})") from err
 
         def _ble_device_found(
-            service_info: bluetooth.BluetoothServiceInfoBleak,
-            change: bluetooth.BluetoothChange,
+                service_info: bluetooth.BluetoothServiceInfoBleak,
+                change: bluetooth.BluetoothChange,
         ) -> None:
             """Handle BLE advertising data updates."""
-            
 
             # Only process the specific device
             if service_info.address != mac_address:
@@ -163,7 +178,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             parsed_data = parse_ble_advertisement(manufacturer_data)
             if not parsed_data:
                 return
-            
+
             # Dynamically update device attributes
             new_fw_version = parsed_data.get("fw_version")
             if new_fw_version is not None:
@@ -227,7 +242,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Will raise ConfigEntryNotReady or ConfigEntryError on failure
         await hub.async_setup_initial()
 
-        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = hub
+        entry.runtime_data = hub
 
         removed_entities = await async_migrate_camera_entities(hass, entry)
         if removed_entities:
@@ -258,7 +273,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
-async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+
+async def async_update_options(hass: HomeAssistant, entry: OpenEPaperLinkConfigEntry) -> None:
     """Handle updates to integration options.
 
     Called when the user updates integration options through the UI.
@@ -268,18 +284,17 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         hass: Home Assistant instance
         entry: Updated configuration entry
     """
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-
     # Only AP entries have hub with reload_config method
-    if is_ble_entry(entry_data):
+    if is_ble_entry(entry):
         # BLE devices don't have configurable options yet
         return
 
     # Traditional AP entry
-    hub = entry_data
+    hub = entry.runtime_data
     await hub.async_reload_config()
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+
+async def async_unload_entry(hass: HomeAssistant, entry: OpenEPaperLinkConfigEntry) -> bool:
     """Unload the integration when removed or restarted.
 
     Handles both BLE and AP entries with appropriate cleanup.
@@ -291,28 +306,25 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Returns:
         bool: True if unload was successful, False otherwise
     """
-    entry_data = hass.data[DOMAIN][entry.entry_id]
 
-    # Determine if BLE or AP entry
-    is_ble_device = is_ble_entry(entry_data)
-
-    if is_ble_device:
+    if is_ble_entry(entry):
         # BLE device cleanup
         unload_ok = await hass.config_entries.async_unload_platforms(entry, BLE_PLATFORMS)
     else:
         # AP entry cleanup
-        hub = entry_data
+        hub = entry.runtime_data
         unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
         if unload_ok:
             await hub.shutdown()
 
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        entry.runtime_data = None
 
     return unload_ok
 
-async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+
+async def async_remove_entry(hass: HomeAssistant, entry: OpenEPaperLinkConfigEntry) -> None:
     """Handle complete removal of integration.
 
     Called when the integration is completely removed from Home Assistant
@@ -323,17 +335,15 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         entry: Configuration entry being removed
     """
     # Clear any repair issues for this entry
-    entry_data = hass.data[DOMAIN].get(entry.entry_id)
-    if entry_data:
-        if is_ble_entry(entry_data):
-            # Clear BLE repair issues
-            mac_address = entry_data["mac_address"]
-            ir.async_delete_issue(hass, DOMAIN, f"ble_not_reachable_{mac_address}")
-            ir.async_delete_issue(hass, DOMAIN, f"ble_protocol_error_{mac_address}")
-            ir.async_delete_issue(hass, DOMAIN, f"ble_setup_error_{mac_address}")
-        else:
-            # Clear AP repair issue
-            ir.async_delete_issue(hass, DOMAIN, "ap_unreachable")
+    if is_ble_entry(entry):
+        # Clear BLE repair issues
+        mac_address = entry.runtime_data["mac_address"]
+        ir.async_delete_issue(hass, DOMAIN, f"ble_not_reachable_{mac_address}")
+        ir.async_delete_issue(hass, DOMAIN, f"ble_protocol_error_{mac_address}")
+        ir.async_delete_issue(hass, DOMAIN, f"ble_setup_error_{mac_address}")
+    else:
+        # Clear AP repair issue
+        ir.async_delete_issue(hass, DOMAIN, "ap_unreachable")
 
     # Only remove shared storage files if this is the last config entry
     remaining_entries = [
@@ -344,6 +354,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if not remaining_entries:
         # This was the last entry, safe to remove shared storage
         await async_remove_storage_files(hass)
+
 
 async def async_remove_storage_files(hass: HomeAssistant) -> None:
     """Remove persistent storage files when removing integration.

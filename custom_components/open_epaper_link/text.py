@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import requests
 
 from homeassistant.components.text import TextEntity, TextMode
@@ -15,6 +17,9 @@ from .util import set_ap_config_item
 import logging
 
 _LOGGER = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry
 
 # Define text field configurations
 AP_TEXT_ENTITIES = [
@@ -76,7 +81,7 @@ class APConfigText(TextEntity):
     def __init__(self, hub, key: str, name: str, icon: str, description: str) -> None:
         """Initialize the text entity.
 
-        Sets up the text input with appropriate name, unique ID, icon,
+        Sets up the text input with the appropriate name, unique ID, icon,
         category, and constraints based on the provided configuration.
 
         Args:
@@ -119,7 +124,7 @@ class APConfigText(TextEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A text entity is available if:
 
@@ -182,7 +187,7 @@ class APConfigText(TextEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self):
-        """Register callbacks when entity is added to Home Assistant.
+        """Register callbacks when an entity is added to Home Assistant.
 
         Sets up two dispatcher listeners:
 
@@ -223,7 +228,7 @@ class TagNameText(TextEntity):
     def __init__(self, hub, tag_mac: str) -> None:
         """Initialize the text entity.
 
-        Sets up the text input with appropriate name, unique ID, and icon
+        Sets up the text input with the appropriate name, unique ID, and icon
         based on the tag's MAC address.
 
         Args:
@@ -257,7 +262,7 @@ class TagNameText(TextEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available.
+        """Return if the entity is available.
 
         A tag name text entity is available if:
 
@@ -340,7 +345,7 @@ class TagNameText(TextEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self):
-        """Register callbacks when entity is added to Home Assistant.
+        """Register callbacks when an entity is added to Home Assistant.
 
         Sets up a dispatcher listener for tag updates to refresh the
         entity's value when the tag data changes.
@@ -357,7 +362,7 @@ class TagNameText(TextEntity):
             )
         )
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEntry", async_add_entities: AddEntitiesCallback) -> None:
     """Set up text entities for AP configuration and tag names.
 
     Creates text input entities for:
@@ -374,9 +379,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    hub = hass.data[DOMAIN][entry.entry_id]
+    hub = entry.runtime_data
 
-    # Wait for initial AP config to be loaded
+    # Wait for the initial AP config to be loaded
     if not hub.ap_config:
         await hub.async_update_ap_config()
 

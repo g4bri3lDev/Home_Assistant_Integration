@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from homeassistant.components import bluetooth
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
@@ -16,7 +18,10 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+if TYPE_CHECKING:
+    from . import OpenEPaperLinkConfigEntry, BLERuntimeData
+
+async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEntry", async_add_entities: AddEntitiesCallback) -> None:
     """Set up button entities from a config entry.
 
     Creates button entities based on device type:
@@ -42,16 +47,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-    
-    # Check if this is a BLE device
-    is_ble_device = is_ble_entry(entry_data)
-    
-    if is_ble_device:
+    if is_ble_entry(entry):
+        ble_data: BLERuntimeData = entry.runtime_data
         # BLE device setup - create clock mode buttons
-        mac_address = entry_data["mac_address"]
-        name = entry_data["name"]
-        device_metadata = entry_data.get("device_metadata", {})
+        mac_address = ble_data["mac_address"]
+        name = ble_data["name"]
+        device_metadata = ble_data.get("device_metadata", {})
         
         ble_buttons = [
             SetClockModeButton(hass, mac_address, name, device_metadata, entry.entry_id),
@@ -61,7 +62,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         return
     
     # AP device setup (original logic)
-    hub = entry_data
+    hub = entry.runtime_data
 
     # Track added tags to prevent duplicates
     added_tags = set()
