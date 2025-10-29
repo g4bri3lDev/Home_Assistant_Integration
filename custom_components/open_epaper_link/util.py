@@ -91,15 +91,15 @@ async def send_tag_cmd(hass: HomeAssistant, entity_id: str, cmd: str) -> bool:
     Raises:
         HomeAssistantError: If the AP is offline or entity_id is invalid
     """
-    # Get the hub from the entity_id's domain
-    hub = get_hub_from_hass(hass)
+    # Get the ap_coordinator from the entity_id's domain
+    ap_coordinator = get_ap_coordinator_from_hass(hass)
 
-    if not hub.online:
+    if not ap_coordinator.online:
         _LOGGER.error("Cannot send command: AP is offline")
         return False
 
     mac = entity_id.split(".")[1].upper()
-    url = f"http://{hub.host}/tag_cmd"
+    url = f"http://{ap_coordinator.host}/tag_cmd"
 
     data = {
         'mac': mac,
@@ -135,14 +135,14 @@ async def reboot_ap(hass: HomeAssistant) -> bool:
     Raises:
         HomeAssistantError: If the AP is offline or cannot be reached
     """
-    # Get the hub instance
-    hub = get_hub_from_hass(hass)
+    # Get the ap_coordinator instance
+    ap_coordinator = get_ap_coordinator_from_hass(hass)
 
-    if not hub.online:
+    if not ap_coordinator.online:
         _LOGGER.error("Cannot reboot AP: AP is offline")
         return False
 
-    url = f"http://{hub.host}/reboot"
+    url = f"http://{ap_coordinator.host}/reboot"
 
     try:
         result = await hass.async_add_executor_job(lambda: requests.post(url))
@@ -157,7 +157,7 @@ async def reboot_ap(hass: HomeAssistant) -> bool:
         return False
 
 
-async def set_ap_config_item(hub, key: str, value: str | int) -> bool:
+async def set_ap_config_item(ap_coordinator, key: str, value: str | int) -> bool:
     """Set a configuration item on the Access Point.
 
     Updates a specific configuration setting on the AP via HTTP.
@@ -168,7 +168,7 @@ async def set_ap_config_item(hub, key: str, value: str | int) -> bool:
     entities of the configuration change.
 
     Args:
-        hub: Hub instance with connection details
+        ap_coordinator: APCoordinator instance with connection details
         key: Configuration key to update
         value: New value to set (string or integer)
 
@@ -178,12 +178,12 @@ async def set_ap_config_item(hub, key: str, value: str | int) -> bool:
     Raises:
         HomeAssistantError: If the AP is offline or request fails
     """
-    if not hub.online:
+    if not ap_coordinator.online:
         _LOGGER.error("Cannot set config: AP is offline")
         return False
 
     # Only send update if value actually changed
-    current_value = hub.ap_config.get(key)
+    current_value = ap_coordinator.ap_config.get(key)
     if current_value == value:
         _LOGGER.debug("Value unchanged, skipping update for %s = %s", key, value)
         return True
@@ -193,14 +193,14 @@ async def set_ap_config_item(hub, key: str, value: str | int) -> bool:
     }
     _LOGGER.debug("Setting AP config %s = %s", key, value)
     try:
-        response = await hub.hass.async_add_executor_job(
-            lambda: requests.post(f"http://{hub.host}/save_apcfg", data=data)
+        response = await ap_coordinator.hass.async_add_executor_job(
+            lambda: requests.post(f"http://{ap_coordinator.host}/save_apcfg", data=data)
         )
         if response.status_code == 200:
             # Update local cache immediately to prevent race conditions
-            hub.ap_config[key] = value
+            ap_coordinator.ap_config[key] = value
             # Only dispatch update for this specific change
-            async_dispatcher_send(hub.hass, f"{DOMAIN}_ap_config_update")
+            async_dispatcher_send(ap_coordinator.hass, f"{DOMAIN}_ap_config_update")
             return True
         else:
             _LOGGER.error("Failed to set AP config %s: HTTP %s", key, response.status_code)
@@ -210,25 +210,25 @@ async def set_ap_config_item(hub, key: str, value: str | int) -> bool:
         return False
 
 
-def get_hub_from_hass(hass: HomeAssistant):
-    """Get the AP Hub instance from Home Assistant data.
+def get_ap_coordinator_from_hass(hass: HomeAssistant):
+    """Get the AP APCoordinator instance from Home Assistant data.
     
-    Searches through all integration entries to find the AP Hub object,
+    Searches through all integration entries to find the AP APCoordinator object,
     filtering out BLE entries which are dictionaries.
     
     Args:
         hass: Home Assistant instance
     
     Returns:
-        Hub: The OpenEPaperLink AP Hub instance
+        APCoordinator: The OpenEPaperLink AP APCoordinator instance
         
     Raises:
-        HomeAssistantError: If no AP hub is configured
+        HomeAssistantError: If no AP ap_coordinator is configured
     """
     for entry in hass.config_entries.async_entries(DOMAIN):
         if not isinstance(entry.runtime_data, dict):
             return entry.runtime_data
-    raise HomeAssistantError("No AP hub configured. Only BLE devices found.")
+    raise HomeAssistantError("No AP ap_coordinator configured. Only BLE devices found.")
 
 
 def is_ble_entry(entry: "OpenEPaperLinkConfigEntry") -> bool:

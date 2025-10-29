@@ -78,23 +78,23 @@ class APConfigText(TextEntity):
     configuring the GitHub repository for tag type definitions.
     """
 
-    def __init__(self, hub, key: str, name: str, icon: str, description: str) -> None:
+    def __init__(self, ap_coordinator, key: str, name: str, icon: str, description: str) -> None:
         """Initialize the text entity.
 
         Sets up the text input with the appropriate name, unique ID, icon,
         category, and constraints based on the provided configuration.
 
         Args:
-            hub: Hub instance for AP communication
+            ap_coordinator: APCoordinator instance for AP communication
             key: Configuration key on the AP
             name: Human-readable name for the UI
             icon: Material Design Icons identifier
             description: Detailed description of the setting's purpose
         """
-        self._hub = hub
+        self._ap_coordinator = ap_coordinator
         self._key = key
         # self._attr_name = f"AP {name}"
-        self._attr_unique_id = f"{hub.entry.entry_id}_{key}"
+        self._attr_unique_id = f"{ap_coordinator.entry.entry_id}_{key}"
         self._attr_icon = icon
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_has_entity_name = True
@@ -118,7 +118,7 @@ class APConfigText(TextEntity):
         return {
             "identifiers": {(DOMAIN, "ap")},
             "name": "OpenEPaperLink AP",
-            "model": self._hub.ap_model,
+            "model": self._ap_coordinator.ap_model,
             "manufacturer": "OpenEPaperLink",
         }
 
@@ -134,7 +134,7 @@ class APConfigText(TextEntity):
         Returns:
             bool: True if the entity is available, False otherwise
         """
-        return self._hub.online and self._key in self._hub.ap_config
+        return self._ap_coordinator.online and self._key in self._ap_coordinator.ap_config
 
     @property
     def native_value(self) -> str | None:
@@ -148,7 +148,7 @@ class APConfigText(TextEntity):
         """
         if not self.available:
             return None
-        return str(self._hub.ap_config.get(self._key, ""))
+        return str(self._ap_coordinator.ap_config.get(self._key, ""))
 
     async def async_set_value(self, value: str) -> None:
         """Set the text value.
@@ -161,7 +161,7 @@ class APConfigText(TextEntity):
             value: New text value to set
         """
         if value != self.native_value:
-            await set_ap_config_item(self._hub, self._key, value)
+            await set_ap_config_item(self._ap_coordinator, self._key, value)
 
     @callback
     def _handle_ap_config_update(self):
@@ -225,17 +225,17 @@ class TagNameText(TextEntity):
     in the AP's configuration, making the name persistent across restarts.
     """
 
-    def __init__(self, hub, tag_mac: str) -> None:
+    def __init__(self, ap_coordinator, tag_mac: str) -> None:
         """Initialize the text entity.
 
         Sets up the text input with the appropriate name, unique ID, and icon
         based on the tag's MAC address.
 
         Args:
-            hub: Hub instance for AP communication
+            ap_coordinator: APCoordinator instance for AP communication
             tag_mac: MAC address of the tag
         """
-        self._hub = hub
+        self._ap_coordinator = ap_coordinator
         self._tag_mac = tag_mac
         self._attr_unique_id = f"{tag_mac}_alias"
         self._attr_has_entity_name = True
@@ -254,7 +254,7 @@ class TagNameText(TextEntity):
         Returns:
             dict: Device information dictionary with identifiers and name
         """
-        tag_data = self._hub.get_tag_data(self._tag_mac)
+        tag_data = self._ap_coordinator.get_tag_data(self._tag_mac)
         return {
             "identifiers": {(DOMAIN, self._tag_mac)},
             "name": tag_data.get("tag_name", self._tag_mac),
@@ -274,17 +274,17 @@ class TagNameText(TextEntity):
             bool: True if the entity is available, False otherwise
         """
         return (
-                self._hub.online and
-                self._hub.is_tag_online(self._tag_mac) and
-                self._tag_mac in self._hub.tags and
-                self._tag_mac not in self._hub.get_blacklisted_tags()
+                self._ap_coordinator.online and
+                self._ap_coordinator.is_tag_online(self._tag_mac) and
+                self._tag_mac in self._ap_coordinator.tags and
+                self._tag_mac not in self._ap_coordinator.get_blacklisted_tags()
         )
 
     @property
     def native_value(self) -> str | None:
         """Return the current value.
 
-        Retrieves the current tag name from the hub's tag data.
+        Retrieves the current tag name from the ap_coordinator's tag data.
 
         Returns:
             str: Current tag name or alias
@@ -292,7 +292,7 @@ class TagNameText(TextEntity):
         """
         if not self.available:
             return None
-        tag_data = self._hub.get_tag_data(self._tag_mac)
+        tag_data = self._ap_coordinator.get_tag_data(self._tag_mac)
         return tag_data.get("tag_name", "")
 
     async def async_set_value(self, value: str) -> None:
@@ -312,7 +312,7 @@ class TagNameText(TextEntity):
             value = self._tag_mac
 
         if value != self.native_value:
-            url = f"http://{self._hub.host}/save_cfg"
+            url = f"http://{self._ap_coordinator.host}/save_cfg"
             data = {
                 'mac': self._tag_mac,
                 'alias': value
@@ -379,11 +379,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    hub = entry.runtime_data
+    ap_coordinator = entry.runtime_data
 
     # Wait for the initial AP config to be loaded
-    if not hub.ap_config:
-        await hub.async_update_ap_config()
+    if not ap_coordinator.ap_config:
+        await ap_coordinator.async_update_ap_config()
 
     entities = []
 
@@ -391,7 +391,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
     for config in AP_TEXT_ENTITIES:
         entities.append(
             APConfigText(
-                hub,
+                ap_coordinator,
                 config["key"],
                 config["name"],
                 config["icon"],
@@ -400,9 +400,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
         )
 
     # Add tag name/alias text entities
-    for tag_mac in hub.tags:
-        if tag_mac not in hub.get_blacklisted_tags():
-            entities.append(TagNameText(hub, tag_mac))
+    for tag_mac in ap_coordinator.tags:
+        if tag_mac not in ap_coordinator.get_blacklisted_tags():
+            entities.append(TagNameText(ap_coordinator, tag_mac))
 
     async_add_entities(entities)
 
@@ -418,8 +418,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
         Args:
             tag_mac: MAC address of the newly discovered tag
         """
-        if tag_mac not in hub.get_blacklisted_tags():
-            async_add_entities([TagNameText(hub, tag_mac)])
+        if tag_mac not in ap_coordinator.get_blacklisted_tags():
+            async_add_entities([TagNameText(ap_coordinator, tag_mac)])
 
     entry.async_on_unload(
         async_dispatcher_connect(

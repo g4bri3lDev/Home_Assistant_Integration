@@ -16,7 +16,8 @@ from .tag_types import TagType, get_tag_types_manager
 _LOGGER: Final = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from . import OpenEPaperLinkConfigEntry
+    from . import OpenEPaperLinkConfigEntry, APCoordinator
+
 
 async def async_setup_entry(
         hass: HomeAssistant,
@@ -25,7 +26,7 @@ async def async_setup_entry(
 ) -> bool:
     """Set up the OpenEPaperLink image platform."""
 
-    hub = entry.runtime_data
+    ap_coordinator = entry.runtime_data
 
     # Track added image entities to prevent duplicates
     added_image_entities = set()
@@ -37,7 +38,7 @@ async def async_setup_entry(
             return
 
         # Skip if tag is blacklisted
-        if tag_mac in hub.get_blacklisted_tags():
+        if tag_mac in ap_coordinator.get_blacklisted_tags():
             _LOGGER.debug("Skipping image entity creation for blacklisted tag: %s", tag_mac)
             return
 
@@ -45,12 +46,12 @@ async def async_setup_entry(
         if tag_mac == "ap":
             return
 
-        image_entity = ESLImage(hass, tag_mac, hub)
+        image_entity = ESLImage(hass, tag_mac, ap_coordinator)
         added_image_entities.add(tag_mac)
         async_add_entities([image_entity], True)
 
     # Add image entity for existing tags
-    for tag_mac in hub.tags:
+    for tag_mac in ap_coordinator.tags:
         await async_add_image_entity(tag_mac)
 
     # Register callback for new tag discovery
@@ -78,7 +79,7 @@ async def async_setup_entry(
         This ensures blacklisted tags don't appear in the UI and
         don't consume resources with unnecessary image processing.
         """
-        for tag_mac in hub.get_blacklisted_tags():
+        for tag_mac in ap_coordinator.get_blacklisted_tags():
             if tag_mac in added_image_entities:
                 added_image_entities.remove(tag_mac)
 
@@ -106,7 +107,7 @@ class ESLImage(ImageEntity):
     - Caches converted images for performance
     - Updates when tag content changes
     """
-    def __init__(self, hass: HomeAssistant, tag_mac: str, hub) -> None:
+    def __init__(self, hass: HomeAssistant, tag_mac: str, ap_coordinator) -> None:
         """Initialize the image entity.
 
        Sets up the image with the appropriate name, ID, and device association.
@@ -116,15 +117,15 @@ class ESLImage(ImageEntity):
        Args:
            hass: Home Assistant instance
            tag_mac: MAC address of the tag
-           hub: Hub instance for AP communication
+           ap_coordinator: APCoordinator instance for AP communication
        """
         super().__init__(hass)
         self._tag_mac = tag_mac
-        self._hub = hub
+        self._ap_coordinator = ap_coordinator
         self._attr_has_entity_name = True
         self._attr_translation_key = "content"
         self._attr_unique_id = f"{tag_mac}_display_content"
-        tag_data = hub.get_tag_data(tag_mac)
+        tag_data = ap_coordinator.get_tag_data(tag_mac)
         self._name = f"{tag_data.get('tag_name', tag_mac)}"
         self._attr_content_type = "image/jpeg"
         self._cached_image: bytes | None = None
@@ -162,10 +163,10 @@ class ESLImage(ImageEntity):
             bool: True if the camera is available, False otherwise
         """
         return (
-                self._hub.online and
-                self._hub.is_tag_online(self._tag_mac) and
-                self._tag_mac in self._hub.tags and
-                self._tag_mac not in self._hub.get_blacklisted_tags()
+                self._ap_coordinator.online and
+                self._ap_coordinator.is_tag_online(self._tag_mac) and
+                self._tag_mac in self._ap_coordinator.tags and
+                self._tag_mac not in self._ap_coordinator.get_blacklisted_tags()
         )
 
     @property
@@ -187,7 +188,7 @@ class ESLImage(ImageEntity):
         Raises:
             Exception: If HTTP request fails
         """
-        url = f"http://{self._hub.host}/current/{self._tag_mac}.raw"
+        url = f"http://{self._ap_coordinator.host}/current/{self._tag_mac}.raw"
         try:
             result = await self.hass.async_add_executor_job(lambda: requests.get(url))
             if result.status_code == 200:
@@ -224,14 +225,14 @@ class ESLImage(ImageEntity):
 
         Returns:
             TagType: Tag type definition if found
-            None: If tag type is unknown or cannot be determined
+            None: If the tag type is unknown or cannot be determined
 
         Raises:
             Exception: If fetching tag definition fails
         """
         if self._tag_type is None:
             try:
-                tag_data = self._hub.get_tag_data(self._tag_mac)
+                tag_data = self._ap_coordinator.get_tag_data(self._tag_mac)
                 hw_type = tag_data.get("hw_type")
                 if hw_type is None:
                     return None

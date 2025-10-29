@@ -34,7 +34,7 @@ CONNECTION_TIMEOUT = 10
 
 
 
-class Hub:
+class APCoordinator:
     """Central communication manager for OpenEPaperLink integration.
 
     This class manages all interaction with the OpenEPaperLink Access Point (AP),
@@ -46,7 +46,7 @@ class Hub:
     - Event handling for tag interactions (buttons, NFC)
     - Persistent storage of tag data
 
-    The Hub maintains the primary state for all tags and the AP itself,
+    The APCoordinator maintains the primary state for all tags and the AP itself,
     serving as the data source for all entities in the integration.
 
     Attributes:
@@ -126,7 +126,7 @@ class Hub:
     async def async_reload_config(self) -> None:
         """Reload configuration from config entry.
 
-        Updates hub settings based on changes to the config entry options:
+        Updates ap_coordinator settings based on changes to the config entry options:
 
         - Reloads the tag blacklist
         - Updates debounce intervals for buttons and NFC
@@ -138,7 +138,7 @@ class Hub:
         self._update_debounce_interval()
 
     async def async_setup_initial(self) -> None:
-        """Set up the hub without establishing a WebSocket connection.
+        """Set up the ap_coordinator without establishing a WebSocket connection.
 
         Performs the initial setup tasks:
 
@@ -242,20 +242,20 @@ class Hub:
 
         Called when Home Assistant is shutting down, this method:
 
-        - Triggers a clean shutdown of the Hub
+        - Triggers a clean shutdown of the APCoordinator
         - Clears the shutdown handler reference
 
         Args:
             _: Event object (unused)
         """
-        _LOGGER.debug("Processing shutdown for OpenEPaperLink hub")
+        _LOGGER.debug("Processing shutdown for OpenEPaperLink ap_coordinator")
         await self.shutdown()
         self._shutdown_handler = None
 
     async def shutdown(self) -> None:
-        """Shut down the hub and clean up resources.
+        """Shut down the ap_coordinator and clean up resources.
 
-        Performs a graceful shutdown of the hub:
+        Performs a graceful shutdown of the ap_coordinator:
 
         - Sets shutdown flag to prevent new connection attempts
         - Cancels any active WebSocket connection task
@@ -264,7 +264,7 @@ class Hub:
 
         This should be called when unloading the integration.
         """
-        _LOGGER.debug("Shutting down OpenEPaperLink hub")
+        _LOGGER.debug("Shutting down OpenEPaperLink ap_coordinator")
 
         # Set shutdown flag first
         self._shutdown.set()
@@ -289,7 +289,7 @@ class Hub:
         self.online = False
         async_dispatcher_send(self.hass, f"{DOMAIN}_connection_status", False)
 
-        _LOGGER.debug("OpenEPaperLink hub shutdown complete")
+        _LOGGER.debug("OpenEPaperLink ap_coordinator shutdown complete")
 
     async def _websocket_handler(self) -> None:
         """Handle the WebSocket connection lifecycle and process messages.
@@ -308,7 +308,7 @@ class Hub:
          - Inner block: Processes individual messages within an active connection
 
          When connection errors occur, the handler waits for RECONNECT_INTERVAL
-         seconds before attempting to reconnect, continuing until the hub
+         seconds before attempting to reconnect, continuing until the ap_coordinator
          shutdown is signaled via the self._shutdown Event.
 
          Note: This method should be run as a background task and not awaited

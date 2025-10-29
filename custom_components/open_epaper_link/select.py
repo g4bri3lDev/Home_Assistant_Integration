@@ -339,24 +339,24 @@ class APConfigSelect(SelectEntity):
     also responds to configuration changes from other sources.
     """
 
-    def __init__(self, hub, key: str, name: str, icon: str, mapping: OptionMapping) -> None:
+    def __init__(self, ap_coordinator, key: str, name: str, icon: str, mapping: OptionMapping) -> None:
         """Initialize the select entity.
 
         Sets up the select entity with the appropriate name, icon, and options.
 
         Args:
-            hub: Hub instance for AP communication
+            ap_coordinator: APCoordinator instance for AP communication
             key: Configuration key on the AP
             name: Human-readable name for the UI
             icon: Material Design Icons identifier
             mapping: OptionMapping for value/option conversion
         """
-        self._hub = hub
+        self._ap_coordinator = ap_coordinator
         self._key = key
         # self._attr_name = f"AP {name}"
         self._attr_has_entity_name = True
         self._attr_translation_key = key
-        self._attr_unique_id = f"{hub.entry.entry_id}_{key}"
+        self._attr_unique_id = f"{ap_coordinator.entry.entry_id}_{key}"
         self._attr_icon = icon
         self._attr_entity_category = EntityCategory.CONFIG
         self._mapping = mapping
@@ -376,7 +376,7 @@ class APConfigSelect(SelectEntity):
         return {
             "identifiers": {(DOMAIN, "ap")},
             "name": "OpenEPaperLink AP",
-            "model": self._hub.ap_model,
+            "model": self._ap_coordinator.ap_model,
             "manufacturer": "OpenEPaperLink",
         }
 
@@ -393,7 +393,7 @@ class APConfigSelect(SelectEntity):
             bool: True if the entity is available, False otherwise
         """
         """Return if entity is available."""
-        return self._hub.online and self._key in self._hub.ap_config
+        return self._ap_coordinator.online and self._key in self._ap_coordinator.ap_config
 
     @property
     def current_option(self) -> str | None:
@@ -408,21 +408,21 @@ class APConfigSelect(SelectEntity):
         """
         if not self.available:
             return None
-        value = self._hub.ap_config.get(self._key)
+        value = self._ap_coordinator.ap_config.get(self._key)
         return self._mapping.get_option(value)
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option.
 
         Converts the selected option to its internal value and
-        sends it to the AP via the hub.
+        sends it to the AP via the ap_coordinator.
 
         Args:
             option: The option selected by the user
         """
         value = self._mapping.get_value(option)
         if value is not None:
-            await set_ap_config_item(self._hub, self._key, value)
+            await set_ap_config_item(self._ap_coordinator, self._key, value)
 
     @callback
     def _handle_ap_config_update(self):
@@ -477,14 +477,14 @@ class APTimeHourSelect(APConfigSelect):
     periods when tag updates are disabled.
     """
 
-    def __init__(self, hub, key: str, name: str, icon: str) -> None:
+    def __init__(self, ap_coordinator, key: str, name: str, icon: str) -> None:
         """Initialize time select entity.
 
         Creates a specialized select entity for time selection with
         24 options representing hours of the day (00:00 to 23:00).
 
         Args:
-            hub: Hub instance for AP communication
+            ap_coordinator: APCoordinator instance for AP communication
             key: Configuration key on the AP
             name: Human-readable name for the UI
             icon: Material Design Icons identifier
@@ -493,7 +493,7 @@ class APTimeHourSelect(APConfigSelect):
         time_mapping = OptionMapping({
             i: f"{i:02d}:00" for i in range(24)
         })
-        super().__init__(hub, key, name, icon, time_mapping)
+        super().__init__(ap_coordinator, key, name, icon, time_mapping)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEntry", async_add_entities: AddEntitiesCallback) -> None:
@@ -510,18 +510,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    hub = entry.runtime_data
+    ap_coordinator = entry.runtime_data
 
     # Wait for the initial AP config to be loaded
-    if not hub.ap_config:
-        await hub.async_update_ap_config()
+    if not ap_coordinator.ap_config:
+        await ap_coordinator.async_update_ap_config()
 
     entities: list[SelectEntity] = []
 
     # Add standard select entities
     for config in SELECT_ENTITIES:
         entities.append(APConfigSelect(
-            hub,
+            ap_coordinator,
             config["key"],
             config["name"],
             config["icon"],
@@ -530,8 +530,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
 
     # Add time select entities
     entities.extend([
-        APTimeHourSelect(hub, "sleeptime1", "No updates between 1 (from)", "mdi:sleep"),
-        APTimeHourSelect(hub, "sleeptime2", "No updates between 2 (to)", "mdi:sleep"),
+        APTimeHourSelect(ap_coordinator, "sleeptime1", "No updates between 1 (from)", "mdi:sleep"),
+        APTimeHourSelect(ap_coordinator, "sleeptime2", "No updates between 2 (to)", "mdi:sleep"),
     ])
 
     async_add_entities(entities)

@@ -99,9 +99,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             FlowResult: Result of the flow step, either showing the form
                        again (with errors if applicable) or creating an entry
         """
-        # Check for existing AP hub entries immediately (before showing form)
+        # Check for existing AP ap_coordinator entries immediately (before showing form)
         for entry_id, entry_data in self.hass.data.get(DOMAIN, {}).items():
-            if not is_ble_entry(entry_data):  # This is an AP (Hub object)
+            if not is_ble_entry(entry_data):  # This is an AP (APCoordinator object)
                 return self.async_abort(reason="single_instance_allowed")
         
         errors: dict[str, str] = {}
@@ -275,7 +275,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not entry:
             return self.async_abort(reason="entry_not_found")
 
-        current_host = entry.data[CONF_HOST]
+        current_host = entry.data[CONF_HOST] # TODO not_loaded
 
         if user_input is not None:
             new_host = user_input[CONF_HOST]
@@ -325,7 +325,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     - Button and NFC debounce intervals to prevent duplicate triggers
     - Custom font directories for the image generation system
 
-    The options flow fetches current tag data from the hub to
+    The options flow fetches current tag data from the ap_coordinator to
     populate the selection fields with accurate information.
     """
 
@@ -347,7 +347,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         Presents a form with configuration options for the integration.
         When submitted, updates the config entry with the new options.
 
-        This step retrieves a list of available tags from the hub to
+        This step retrieves a list of available tags from the ap_coordinator to
         allow selection of tags to blacklist.
 
         Args:
@@ -382,11 +382,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 }
             )
 
-        # Get a list of all known tags from the hub (AP devices only)
-        hub = self.config_entry.runtime_data
+        # Get a list of all known tags from the ap_coordinator (AP devices only)
+        ap_coordinator = self.config_entry.runtime_data
         tags = []
-        for tag_mac in hub.tags:
-            tag_data = hub.get_tag_data(tag_mac)
+        for tag_mac in ap_coordinator.tags:
+            tag_data = ap_coordinator.get_tag_data(tag_mac)
             tag_name = tag_data.get("tag_name", tag_mac)
             tags.append(
                 selector.SelectOptionDict(

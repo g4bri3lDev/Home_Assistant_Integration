@@ -18,7 +18,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .const import DOMAIN, SIGNAL_TAG_IMAGE_UPDATE
 from .imagegen import ImageGen
 from .tag_types import get_tag_types_manager
-from .util import send_tag_cmd, reboot_ap, is_ble_entry, get_hub_from_hass
+from .util import send_tag_cmd, reboot_ap, is_ble_entry, get_ap_coordinator_from_hass
 from .ble_utils import upload_image as ble_upload_image, DeviceMetadata
 
 _LOGGER: Final = logging.getLogger(__name__)
@@ -229,7 +229,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
     # Separate queues for different device types
     ble_upload_queue = UploadQueueHandler(max_concurrent=1, cooldown=0.1)
-    hub_upload_queue = UploadQueueHandler(max_concurrent=1, cooldown=1.0)
+    ap_upload_queue = UploadQueueHandler(max_concurrent=1, cooldown=1.0)
 
     def _extract_mac_from_entity_id(entity_id: str) -> str:
         """
@@ -274,7 +274,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             entity_id: Entity ID in format `domain.mac_address`
 
         Returns:
-            bool: True if BLE device, False if Hub device
+            bool: True if BLE device, False if APCoordinator device
         """
         device = _get_device_by_entity_id(entity_id)
         if not device:
@@ -328,7 +328,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "00"
         )
 
-    def require_hub_online(func: Callable) -> Callable:
+    def require_ap_coordinator_online(func: Callable) -> Callable:
         """
         Decorator to require the AP to be online before executing a service.
 
@@ -340,8 +340,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """
         @wraps(func)
         async def wrapper(service: ServiceCall, *args, **kwargs) -> None:
-            hub = get_hub_from_hass(hass)
-            if not hub.online:
+            ap_coordinator = get_ap_coordinator_from_hass(hass)
+            if not ap_coordinator.online:
                 raise ServiceValidationError(
                     "OpenEPaperLink AP is offline. Please check your network connection and AP status."
                 )
@@ -508,14 +508,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         device_errors = []
 
         try:
-            # Determine if BLE device or Hub device
+            # Determine if BLE device or APCoordinator device
             is_ble_device = _is_ble_device(entity_id)
 
-            # For Hub devices, ensure Hub is online
-            hub = None
+            # For APCoordinator devices, ensure APCoordinator is online
+            ap_coordinator = None
             if not is_ble_device:
-                hub = get_hub_from_hass(hass)
-                if not hub.online:
+                ap_coordinator = get_ap_coordinator_from_hass(hass)
+                if not ap_coordinator.online:
                     raise ServiceValidationError(
                         "OpenEPaperLink AP is offline. Please check your network connection and AP status."
                     )
@@ -572,9 +572,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     image_data
                 )
             else:
-                await hub_upload_queue.add_to_queue(
+                await ap_upload_queue.add_to_queue(
                     upload_image,
-                    hub,
+                    ap_coordinator,
                     entity_id,
                     image_data,
                     service.data.get("dither", DITHER_DEFAULT),
@@ -588,7 +588,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         except Exception as err:
             raise ServiceValidationError(f"Error processing device {entity_id}: {str(err)}") from err
 
-    async def upload_image(hub, entity_id: str, img: bytes, dither: int, ttl: int,
+    async def upload_image(ap_coordinator, entity_id: str, img: bytes, dither: int, ttl: int,
                            preload_type: int = 0, preload_lut: int = 0) -> None:
         """
         Upload image to tag through AP.
@@ -600,7 +600,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         Will retry upload on timeout, with exponential backoff.
 
         Args:
-            hub: Hub instance with connection details
+            ap_coordinator: APCoordinator instance with connection details
             entity_id: Entity ID of the target tag
             img: JPEG image data as bytes
             dither: Dithering mode (0=none, 1=Floyd-Steinberg, 2=ordered)
@@ -611,7 +611,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         Raises:
             ServiceValidationError: If upload fails or times out
         """
-        url = f"http://{hub.host}/imgupload"
+        url = f"http://{ap_coordinator.host}/imgupload"
         mac = _extract_mac_from_entity_id(entity_id)
 
         _LOGGER.debug("Upload parameters: dither=%d, ttl=%d, preload_type=%d, preload_lut=%d",
@@ -713,7 +713,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         except Exception as err:
             raise ServiceValidationError(f"Failed to upload image via BLE to {entity_id}: {str(err)}") from err
 
-    @require_hub_online
+    @require_ap_coordinator_online
     @handle_targets
     async def setled_service(service: ServiceCall, entity_id: str) -> None:
         """
@@ -736,11 +736,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         Raises:
             ServiceValidationError: If request fails
         """
-        hub = get_hub_from_hass(hass)
+        ap_coordinator = get_ap_coordinator_from_hass(hass)
         mac = _extract_mac_from_entity_id(entity_id)
         pattern = _build_led_pattern(service.data)
 
-        url = f"http://{hub.host}/led_flash?mac={mac}&pattern={pattern}"
+        url = f"http://{ap_coordinator.host}/led_flash?mac={mac}&pattern={pattern}"
         result = await hass.async_add_executor_job(requests.get, url)
 
         if result.status_code != 200:
@@ -748,7 +748,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 f"LED pattern update failed with status code: {result.status_code}"
             )
 
-    @require_hub_online
+    @require_ap_coordinator_online
     @handle_targets
     async def clear_pending_service(service: ServiceCall, entity_id: str) -> None:
         """
@@ -763,7 +763,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """
         await send_tag_cmd(hass, entity_id, "clear")
 
-    @require_hub_online
+    @require_ap_coordinator_online
     @handle_targets
     async def force_refresh_service(service: ServiceCall, entity_id: str) -> None:
         """
@@ -778,7 +778,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """
         await send_tag_cmd(hass, entity_id, "refresh")
 
-    @require_hub_online
+    @require_ap_coordinator_online
     @handle_targets
     async def reboot_tag_service(service: ServiceCall, entity_id: str) -> None:
         """
@@ -806,7 +806,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """
         await send_tag_cmd(hass, entity_id, "scan")
 
-    @require_hub_online
+    @require_ap_coordinator_online
     async def reboot_ap_service(service: ServiceCall) -> None:
         """
         Reboot the Access Point.

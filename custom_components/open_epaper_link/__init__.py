@@ -12,7 +12,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from .ble_utils import interrogate_ble_device, BLETimeoutError, BLEConnectionError, BLEError
 from .const import DOMAIN
-from .hub import Hub
+from .coordinator import APCoordinator
 from .services import async_setup_services
 from .util import is_ble_entry
 
@@ -44,7 +44,7 @@ class BLERuntimeData(TypedDict):
     sensors: dict
 
 
-type OpenEPaperLinkConfigEntry = ConfigEntry[Hub | BLERuntimeData]
+type OpenEPaperLinkConfigEntry = ConfigEntry[APCoordinator | BLERuntimeData]
 
 
 async def async_migrate_camera_entities(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
@@ -236,13 +236,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenEPaperLinkConfigEntr
         # Traditional AP setup
         _LOGGER.debug("Setting up AP entry: %s", entry.data.get(CONF_HOST, "unknown"))
 
-        hub = Hub(hass, entry)
+        ap_coordinator = APCoordinator(hass, entry)
 
         # Do basic setup without WebSocket connection
         # Will raise ConfigEntryNotReady or ConfigEntryError on failure
-        await hub.async_setup_initial()
+        await ap_coordinator.async_setup_initial()
 
-        entry.runtime_data = hub
+        entry.runtime_data = ap_coordinator
 
         removed_entities = await async_migrate_camera_entities(hass, entry)
         if removed_entities:
@@ -259,11 +259,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenEPaperLinkConfigEntr
 
         async def start_websocket(_):
             """Start WebSocket connection after HA is fully started."""
-            await hub.async_start_websocket()
+            await ap_coordinator.async_start_websocket()
 
         if hass.is_running:
             # If HA is already running, start WebSocket immediately
-            await hub.async_start_websocket()
+            await ap_coordinator.async_start_websocket()
         else:
             # Otherwise wait for the started event
             hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, start_websocket)
@@ -284,14 +284,14 @@ async def async_update_options(hass: HomeAssistant, entry: OpenEPaperLinkConfigE
         hass: Home Assistant instance
         entry: Updated configuration entry
     """
-    # Only AP entries have hub with reload_config method
+    # Only AP entries have ap_coordinator with reload_config method
     if is_ble_entry(entry):
         # BLE devices don't have configurable options yet
         return
 
     # Traditional AP entry
-    hub = entry.runtime_data
-    await hub.async_reload_config()
+    ap_coordinator = entry.runtime_data
+    await ap_coordinator.async_reload_config()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: OpenEPaperLinkConfigEntry) -> bool:
@@ -312,11 +312,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: OpenEPaperLinkConfigEnt
         unload_ok = await hass.config_entries.async_unload_platforms(entry, BLE_PLATFORMS)
     else:
         # AP entry cleanup
-        hub = entry.runtime_data
+        ap_coordinator = entry.runtime_data
         unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
         if unload_ok:
-            await hub.shutdown()
+            await ap_coordinator.shutdown()
 
     if unload_ok:
         entry.runtime_data = None

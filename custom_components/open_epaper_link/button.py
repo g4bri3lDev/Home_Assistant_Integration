@@ -190,7 +190,7 @@ class ClearPendingTagButton(ButtonEntity):
         Args:
             hass: Home Assistant instance
             tag_mac: MAC address of the tag
-            hub: Hub instance for AP communication
+            hub: APCoordinator instance for AP communication
         """
         self.hass = hass
         self._tag_mac = tag_mac
@@ -198,7 +198,7 @@ class ClearPendingTagButton(ButtonEntity):
         self._hub = hub
         self._attr_has_entity_name = True
         self._attr_translation_key = "clear_pending"
-        # self._attr_name = f"{hub._data[tag_mac]['tag_name']} Clear Pending"
+        # self._attr_name = f"{ap_coordinator._data[tag_mac]['tag_name']} Clear Pending"
         self._attr_unique_id = f"{tag_mac}_clear_pending"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_icon = "mdi:broom"
@@ -269,7 +269,7 @@ class ForceRefreshButton(ButtonEntity):
         Args:
             hass: Home Assistant instance
             tag_mac: MAC address of the tag
-            hub: Hub instance for AP communication
+            hub: APCoordinator instance for AP communication
         """
         self.hass = hass
         self._tag_mac = tag_mac
@@ -277,7 +277,7 @@ class ForceRefreshButton(ButtonEntity):
         self._hub = hub
         self._attr_has_entity_name = True
         self._attr_translation_key = "force_refresh"
-        # self._attr_name = f"{hub._data[tag_mac]['tag_name']} Force Refresh"
+        # self._attr_name = f"{ap_coordinator._data[tag_mac]['tag_name']} Force Refresh"
         self._attr_unique_id = f"{tag_mac}_force_refresh"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_icon = "mdi:refresh"
@@ -347,7 +347,7 @@ class RebootTagButton(ButtonEntity):
         Args:
             hass: Home Assistant instance
             tag_mac: MAC address of the tag
-            hub: Hub instance for AP communication
+            hub: APCoordinator instance for AP communication
         """
         self.hass = hass
         self._tag_mac = tag_mac
@@ -355,7 +355,7 @@ class RebootTagButton(ButtonEntity):
         self._hub = hub
         self._attr_has_entity_name = True
         self._attr_translation_key = "reboot_tag"
-        # self._attr_name = f"{hub._data[tag_mac]['tag_name']} Reboot"
+        # self._attr_name = f"{ap_coordinator._data[tag_mac]['tag_name']} Reboot"
         self._attr_unique_id = f"{tag_mac}_reboot"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_icon = "mdi:restart"
@@ -425,7 +425,7 @@ class ScanChannelsButton(ButtonEntity):
         Args:
             hass: Home Assistant instance
             tag_mac: MAC address of the tag
-            hub: Hub instance for AP communication
+            hub: APCoordinator instance for AP communication
         """
         self.hass = hass
         self._tag_mac = tag_mac
@@ -433,7 +433,7 @@ class ScanChannelsButton(ButtonEntity):
         self._hub = hub
         self._attr_has_entity_name = True
         self._attr_translation_key = "scan_channels"
-        # self._attr_name = f"{hub._data[tag_mac]['tag_name']} Scan Channels"
+        # self._attr_name = f"{ap_coordinator._data[tag_mac]['tag_name']} Scan Channels"
         self._attr_unique_id = f"{tag_mac}_scan_channels"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_icon = "mdi:wifi"
@@ -503,7 +503,7 @@ class DeepSleepButton(ButtonEntity):
         Args:
             hass: Home Assistant instance
             tag_mac: MAC address of the tag
-            hub: Hub instance for AP communication
+            hub: APCoordinator instance for AP communication
         """
         self.hass = hass
         self._tag_mac = tag_mac
@@ -511,7 +511,7 @@ class DeepSleepButton(ButtonEntity):
         self._hub = hub
         self._attr_has_entity_name = True
         self._attr_translation_key = "deep_sleep"
-        # self._attr_name = f"{hub._data[tag_mac]['tag_name']} Scan Channels"
+        # self._attr_name = f"{ap_coordinator._data[tag_mac]['tag_name']} Scan Channels"
         self._attr_unique_id = f"{tag_mac}_deep_sleep"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_icon = "mdi:sleep"
@@ -583,7 +583,7 @@ class RebootAPButton(ButtonEntity):
 
         Args:
             hass: Home Assistant instance
-            hub: Hub instance for AP communication
+            hub: APCoordinator instance for AP communication
         """
         self.hass = hass
         self._hub = hub
@@ -684,7 +684,7 @@ class RefreshTagTypesButton(ButtonEntity):
         return {
             "identifiers": {(DOMAIN, "ap")},
             "name": "OpenEPaperLink AP",
-            # "model": self._hub.ap_model,
+            # "model": self._ap_coordinator.ap_model,
             "manufacturer": "OpenEPaperLink",
         }
 

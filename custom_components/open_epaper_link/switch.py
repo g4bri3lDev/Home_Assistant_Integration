@@ -83,23 +83,23 @@ class APConfigSwitch(SwitchEntity):
     the configuration value (1 for on, 0 for off).
     """
 
-    def __init__(self, hub, key: str, name: str, icon: str, description: str) -> None:
+    def __init__(self, ap_coordinator, key: str, name: str, icon: str, description: str) -> None:
         """Initialize the switch entity.
 
         Sets up the switch with the appropriate name, unique ID, icon, and
         category based on the provided configuration.
 
         Args:
-            hub: Hub instance for AP communication
+            ap_coordinator: APCoordinator instance for AP communication
             key: Configuration key on the AP
             name: Human-readable name for the UI
             icon: Material Design Icons identifier
             description: Detailed description of the switch's purpose
         """
-        self._hub = hub
+        self._ap_coordinator = ap_coordinator
         self._key = key
         # self._attr_name = f"AP {name}"
-        self._attr_unique_id = f"{hub.entry.entry_id}_{key}"
+        self._attr_unique_id = f"{ap_coordinator.entry.entry_id}_{key}"
         self._attr_icon = icon
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_has_entity_name = True
@@ -120,7 +120,7 @@ class APConfigSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "ap")},
             "name": "OpenEPaperLink AP",
-            "model": self._hub.ap_model,
+            "model": self._ap_coordinator.ap_model,
             "manufacturer": "OpenEPaperLink",
         }
 
@@ -136,7 +136,7 @@ class APConfigSwitch(SwitchEntity):
         Returns:
             bool: True if the switch is available, False otherwise
         """
-        return self._hub.online and self._key in self._hub.ap_config
+        return self._ap_coordinator.online and self._key in self._ap_coordinator.ap_config
 
     @property
     def is_on(self) -> bool | None:
@@ -151,7 +151,7 @@ class APConfigSwitch(SwitchEntity):
         """
         if not self.available:
             return None
-        return bool(int(self._hub.ap_config.get(self._key, 0)))
+        return bool(int(self._ap_coordinator.ap_config.get(self._key, 0)))
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the entity on.
@@ -162,7 +162,7 @@ class APConfigSwitch(SwitchEntity):
         Args:
             **kwargs: Additional arguments (not used)
         """
-        await set_ap_config_item(self._hub, self._key, 1)
+        await set_ap_config_item(self._ap_coordinator, self._key, 1)
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the entity off.
@@ -173,7 +173,7 @@ class APConfigSwitch(SwitchEntity):
         Args:
             **kwargs: Additional arguments (not used)
         """
-        await set_ap_config_item(self._hub, self._key, 0)
+        await set_ap_config_item(self._ap_coordinator, self._key, 0)
 
     @callback
     def _handle_ap_config_update(self):
@@ -244,11 +244,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
         entry: Configuration entry
         async_add_entities: Callback to register new entities
     """
-    hub = entry.runtime_data
+    ap_coordinator = entry.runtime_data
 
     # Wait for the initial AP config to be loaded
-    if not hub.ap_config:
-        await hub.async_update_ap_config()
+    if not ap_coordinator.ap_config:
+        await ap_coordinator.async_update_ap_config()
 
     entities = []
 
@@ -256,7 +256,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
     for config in SWITCH_ENTITIES:
         entities.append(
             APConfigSwitch(
-                hub,
+                ap_coordinator,
                 config["key"],
                 config["name"],
                 config["icon"],

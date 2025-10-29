@@ -27,7 +27,7 @@ from homeassistant.helpers.typing import StateType
 import logging
 
 from . import BLERuntimeData, is_ble_entry
-from .hub import Hub
+from .coordinator import APCoordinator
 from .tag_types import get_hw_string, get_hw_dimensions
 
 _LOGGER: Final = logging.getLogger(__name__)
@@ -216,7 +216,7 @@ Sensor types include:
 - Operational state (AP state, run state)
 
 Each sensor uses a value_fn to extract the relevant data from
-the hub's AP status dictionary.
+the ap_coordinator's AP status dictionary.
 """
 TAG_SENSOR_TYPES: tuple[OpenEPaperLinkSensorEntityDescription, ...] = (
     OpenEPaperLinkSensorEntityDescription(
@@ -452,7 +452,7 @@ Sensor types include:
 - Technical details (wakeup reason, capabilities flags)
 
 Each sensor uses a value_fn to extract the relevant data from
-the hub's tag data dictionary.
+the ap_coordinator's tag data dictionary.
 """
 
 
@@ -493,18 +493,18 @@ class OpenEPaperLinkBaseSensor(SensorEntity):
 
     entity_description: OpenEPaperLinkSensorEntityDescription
 
-    def __init__(self, hub, description: OpenEPaperLinkSensorEntityDescription) -> None:
+    def __init__(self, ap_coordinator, description: OpenEPaperLinkSensorEntityDescription) -> None:
         """Initialize the sensor.
 
-        Sets up the sensor with the hub connection and entity description.
+        Sets up the sensor with the ap_coordinator connection and entity description.
         The description contains all the information needed to extract
         values and format the sensor's display.
 
         Args:
-            hub: Hub instance for data access
+            ap_coordinator: APCoordinator instance for data access
             description: Sensor entity description
         """
-        self._hub = hub
+        self._ap_coordinator = ap_coordinator
         self.entity_description = description
 
 
@@ -516,24 +516,24 @@ class OpenEPaperLinkTagSensor(OpenEPaperLinkBaseSensor):
     information.
 
     Each tag has multiple sensor entities created from the TAG_SENSOR_TYPES
-    definitions, with values extracted from the tag's data in the hub.
+    definitions, with values extracted from the tag's data in the ap_coordinator.
     """
-    def __init__(self, hub, tag_mac: str, description: OpenEPaperLinkSensorEntityDescription) -> None:
+    def __init__(self, ap_coordinator, tag_mac: str, description: OpenEPaperLinkSensorEntityDescription) -> None:
         """Initialize the tag sensor.
 
-    Sets up the sensor with the tag MAC, hub connection, and description.
+    Sets up the sensor with the tag MAC, ap_coordinator connection, and description.
     Configures the device info to associate the sensor with the correct
     tag device in the Home Assistant UI.
 
     Args:
-        hub: Hub instance for data access
+        ap_coordinator: APCoordinator instance for data access
         tag_mac: MAC address of the tag
         description: Sensor entity description
     """
-        super().__init__(hub, description)
+        super().__init__(ap_coordinator, description)
         self._tag_mac = tag_mac
 
-        name_base = self._hub.get_tag_data(tag_mac).get("tag_name", tag_mac)
+        name_base = self._ap_coordinator.get_tag_data(tag_mac).get("tag_name", tag_mac)
         # self._attr_name = f"{name_base} {description.name}"
         self._attr_has_entity_name = True
         self._attr_translation_key = description.key
@@ -544,9 +544,9 @@ class OpenEPaperLinkTagSensor(OpenEPaperLinkBaseSensor):
         # Set entity_id with the sensor type included
         self.entity_id = f"{DOMAIN}.{tag_mac.lower()}_{description.key}"
 
-        firmware_version = str(self._hub.get_tag_data(tag_mac).get("version", ""))
+        firmware_version = str(self._ap_coordinator.get_tag_data(tag_mac).get("version", ""))
 
-        tag_data = self._hub.get_tag_data(self._tag_mac)
+        tag_data = self._ap_coordinator.get_tag_data(self._tag_mac)
         hw_type = tag_data.get("hw_type", 0)
         hw_string = get_hw_string(hw_type)
         width, height = get_hw_dimensions(hw_type)
@@ -566,12 +566,12 @@ class OpenEPaperLinkTagSensor(OpenEPaperLinkBaseSensor):
     def available(self) -> bool:
         """Return if the entity is available.
 
-        A tag sensor is available if the tag is known to the hub.
+        A tag sensor is available if the tag is known to the ap_coordinator.
 
         Returns:
             bool: True if the sensor is available, False otherwise
         """
-        return self._hub.online and self._hub.is_tag_online(self._tag_mac)
+        return self._ap_coordinator.online and self._ap_coordinator.is_tag_online(self._tag_mac)
 
     @property
     def native_value(self):
@@ -587,7 +587,7 @@ class OpenEPaperLinkTagSensor(OpenEPaperLinkBaseSensor):
         """
         if not self.available or self.entity_description.value_fn is None:
             return None
-        return self.entity_description.value_fn(self._hub.get_tag_data(self._tag_mac))
+        return self.entity_description.value_fn(self._ap_coordinator.get_tag_data(self._tag_mac))
 
     @property
     def extra_state_attributes(self):
@@ -603,7 +603,7 @@ class OpenEPaperLinkTagSensor(OpenEPaperLinkBaseSensor):
         if self.entity_description.attr_fn is None:
             return None
 
-        return self.entity_description.attr_fn(self._hub.get_tag_data(self._tag_mac))
+        return self.entity_description.attr_fn(self._ap_coordinator.get_tag_data(self._tag_mac))
 
     async def async_added_to_hass(self) -> None:
         """Run when entity is added to register update signal handler.
@@ -651,33 +651,33 @@ class OpenEPaperLinkAPSensor(OpenEPaperLinkBaseSensor):
     such as connection status, memory usage, tag counts, and system state.
 
     Each AP has multiple sensor entities created from the AP_SENSOR_TYPES
-    definitions, with values extracted from the AP's status data in the hub.
+    definitions, with values extracted from the AP's status data in the ap_coordinator.
     """
 
-    def __init__(self, hub, description: OpenEPaperLinkSensorEntityDescription) -> None:
+    def __init__(self, ap_coordinator, description: OpenEPaperLinkSensorEntityDescription) -> None:
         """Initialize the AP sensor.
 
-        Sets up the sensor with the hub connection and description.
+        Sets up the sensor with the ap_coordinator connection and description.
         Configures the device info to associate the sensor with the
         AP device in the Home Assistant UI.
 
         Args:
-            hub: Hub instance for data access
+            ap_coordinator: APCoordinator instance for data access
             description: Sensor entity description
         """
-        super().__init__(hub, description)
+        super().__init__(ap_coordinator, description)
 
         # Set name and unique_id
         # self._attr_name = f"AP {description.name}"
         self._attr_has_entity_name = True
         self._attr_translation_key = description.key
-        self._attr_unique_id = f"{self._hub.entry.entry_id}_{description.key}"
+        self._attr_unique_id = f"{self._ap_coordinator.entry.entry_id}_{description.key}"
 
         # Set device info
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, "ap")},
             name="OpenEPaperLink AP",
-            model=self._hub.ap_model,
+            model=self._ap_coordinator.ap_model,
             manufacturer="OpenEPaperLink",
         )
 
@@ -690,7 +690,7 @@ class OpenEPaperLinkAPSensor(OpenEPaperLinkBaseSensor):
         Returns:
             bool: True if the sensor is available, False otherwise
         """
-        return self._hub.online
+        return self._ap_coordinator.online
 
     @property
     def native_value(self):
@@ -706,7 +706,7 @@ class OpenEPaperLinkAPSensor(OpenEPaperLinkBaseSensor):
         """
         if not self.available or self.entity_description.value_fn is None:
             return None
-        return self.entity_description.value_fn(self._hub.ap_status)
+        return self.entity_description.value_fn(self._ap_coordinator.ap_status)
 
     async def async_added_to_hass(self) -> None:
         """Run when entity is added to register update signal handlers.
@@ -910,10 +910,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
         return
     
     # Traditional AP setup
-    hub: Hub = entry.runtime_data  # For AP entries, entry_data is the Hub instance
+    ap_coordinator: APCoordinator = entry.runtime_data  # For AP entries, entry_data is the APCoordinator instance
 
     # Set up AP sensors
-    ap_sensors = [OpenEPaperLinkAPSensor(hub, description) for description in AP_SENSOR_TYPES]
+    ap_sensors = [OpenEPaperLinkAPSensor(ap_coordinator, description) for description in AP_SENSOR_TYPES]
     async_add_entities(ap_sensors)
 
     @callback
@@ -930,13 +930,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: "OpenEPaperLinkConfigEnt
         entities = []
 
         for description in TAG_SENSOR_TYPES:
-            sensor = OpenEPaperLinkTagSensor(hub, tag_mac, description)
+            sensor = OpenEPaperLinkTagSensor(ap_coordinator, tag_mac, description)
             entities.append(sensor)
 
         async_add_entities(entities)
 
     # Set up sensors for existing tags
-    for tag_mac in hub.tags:
+    for tag_mac in ap_coordinator.tags:
         async_add_tag_sensor(tag_mac)
 
     # Register callback for new tag discovery

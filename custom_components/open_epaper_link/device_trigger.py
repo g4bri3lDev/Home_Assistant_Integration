@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+from typing import Final
+
 import voluptuous as vol
 import logging
 from homeassistant.components.device_automation import DEVICE_TRIGGER_BASE_SCHEMA
@@ -153,7 +156,7 @@ async def async_attach_trigger(hass, config, action, trigger_info):
     as an event listener for the 'open_epaper_link_event' event type
     with filtering for the specific device ID and trigger type.
 
-    When a tag reports an event (e.g., button press), the hub converts
+    When a tag reports an event (e.g., button press), the ap_coordinator converts
     it to a Home Assistant event that this listener can respond to.
 
     Args:

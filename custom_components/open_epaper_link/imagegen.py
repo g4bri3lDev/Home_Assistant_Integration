@@ -20,7 +20,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.network import get_url
 from .const import DOMAIN, SIGNAL_TAG_IMAGE_UPDATE
 from .tag_types import TagType, get_tag_types_manager
-from .util import get_image_path, get_hub_from_hass
+from .util import get_image_path, get_ap_coordinator_from_hass
 from PIL import Image, ImageDraw, ImageFont
 from resizeimage import resizeimage
 from homeassistant.exceptions import HomeAssistantError
@@ -581,15 +581,15 @@ class ImageGen:
         self._not_setup = True
         self._last_interaction_file = os.path.join(os.path.dirname(__file__), "lastapinteraction.txt")
 
-        # Load font manager - find a Hub entry with .entry attribute, or None for BLE-only setups
+        # Load font manager - find a APCoordinator entry with .entry attribute, or None for BLE-only setups
         self._entry = None
         if DOMAIN in hass.data and hass.data[DOMAIN]:
             for entry_id, entry_data in hass.data[DOMAIN].items():
-                # Look for Hub entries (which have .entry attribute) vs BLE entries (which are dicts)
+                # Look for APCoordinator entries (which have .entry attribute) vs BLE entries (which are dicts)
                 if hasattr(entry_data, 'entry'):
                     self._entry = entry_data.entry
                     break
-            # If no Hub found, self._entry stays None (BLE-only setup)
+            # If no APCoordinator found, self._entry stays None (BLE-only setup)
 
         self._font_manager = FontManager(self.hass, self._entry)
 
@@ -632,9 +632,9 @@ class ImageGen:
         """
 
         try:
-            # Get hub instance
-            hub = get_hub_from_hass(self.hass)
-            if not hub.online:
+            # Get ap_coordinator instance
+            ap_coordinator = get_ap_coordinator_from_hass(self.hass)
+            if not ap_coordinator.online:
                 raise HomeAssistantError("OpenEPaperLink AP is offline")
 
             # Get tag MAC from entity ID
@@ -643,21 +643,21 @@ class ImageGen:
             except IndexError:
                 raise HomeAssistantError(f"Invalid entity ID format: {entity_id}")
 
-            # First check if tag is known to the hub
-            if tag_mac not in hub.tags:
+            # First check if tag is known to the ap_coordinator
+            if tag_mac not in ap_coordinator.tags:
                 raise HomeAssistantError(
                     f"Tag {tag_mac} is not registered with the AP. "
                     "If the tag has checked in, try restarting Home Assistant."
                 )
 
             # Check if tag is blacklisted
-            if tag_mac in hub.get_blacklisted_tags():
+            if tag_mac in ap_coordinator.get_blacklisted_tags():
                 raise HomeAssistantError(
                     f"Tag {tag_mac} is currently blacklisted. Remove it from the blacklist in integration options to use it."
                 )
 
-            # Get tag data - should exist since hub.tags was checked
-            tag_data = hub.get_tag_data(tag_mac)
+            # Get tag data - should exist since ap_coordinator.tags was checked
+            tag_data = ap_coordinator.get_tag_data(tag_mac)
             if not tag_data:
                 raise HomeAssistantError(
                     f"Inconsistent state: Tag {tag_mac} is known but has no data. "
@@ -703,7 +703,7 @@ class ImageGen:
         """Get tag type information for a BLE entity.
         
         Retrieves tag type information and accent color for BLE devices from
-        stored device metadata instead of Hub data.
+        stored device metadata instead of APCoordinator data.
         
         Args:
             hass: Home Assistant instance
@@ -901,7 +901,7 @@ class ImageGen:
 
         error_collector = error_collector if error_collector is not None else []
 
-        # Use provided tag_info for BLE devices, or get from Hub for traditional devices
+        # Use provided tag_info for BLE devices, or get from APCoordinator for traditional devices
         if tag_info is not None:
             tag_type, accent_color = tag_info
         else:
